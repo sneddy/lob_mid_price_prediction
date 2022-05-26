@@ -1,5 +1,6 @@
 import pandas as pd
 from sklearn.linear_model import Ridge
+
 from xtx.evaluation import CrossValRunner
 from xtx.feature_extractor import FeatureExtractor
 from xtx.time_folds import TimeFolds
