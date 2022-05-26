@@ -4,8 +4,8 @@ import scipy.stats
 from contexttimer import Timer
 from pandarallel import pandarallel
 
-from xtx.flatten_tools import ask_flatten, bid_flatten, flatten
-from xtx.utils import init_logger
+from xtx.features.flatten_tools import ask_flatten, bid_flatten
+from xtx.utils.dev_utils import init_logger
 
 pandarallel.initialize(progress_bar=False)
 logger = init_logger("logging/feature_extraction.log")
@@ -28,12 +28,11 @@ def add_flatten_features(flatten_df: pd.DataFrame, features: pd.DataFrame, n: in
     features[f"{prefix}_kurtosis_{n}"] = flatten_df.parallel_apply(scipy.stats.kurtosis)
 
 
-def extract_flatten_features(data: pd.DataFrame, n: int, fillna: bool) -> pd.DataFrame():
+def extract_flatten_features(data: pd.DataFrame, n: int) -> pd.DataFrame():
     """
     Args:
         data (pd.DataFrame): _description_
         n (int): number of operation from every moment. Other ignore or fillna
-        fillna (bool): if True fill nan values with more extremal
 
     Returns:
         pd.DataFrame(): corresponding features

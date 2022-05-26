@@ -1,7 +1,11 @@
 contexttimer==0.3.3
+lightgbm==3.3.2.99
+matplotlib==3.5.1
 numpy==1.22.3
 pandarallel==1.6.1
 pandas==1.4.2
+scikit_learn==1.1.1
 scipy==1.8.0
+seaborn==0.11.2
 torch==1.11.0
 tqdm==4.64.0

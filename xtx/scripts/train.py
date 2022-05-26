@@ -1,10 +1,9 @@
 import pandas as pd
-from sklearn.linear_model import Ridge
 
-from xtx.evaluation import CrossValRunner
-from xtx.feature_extractor import FeatureExtractor
-from xtx.time_folds import TimeFolds
-from xtx.utils import init_logger
+from xtx.features.feature_extractor import FeatureExtractor
+from xtx.modeling.evaluation import CrossValRunner
+from xtx.modeling.time_folds import TimeFolds
+from xtx.utils.dev_utils import init_logger
 
 pd.set_option("display.max_columns", 100)
 
