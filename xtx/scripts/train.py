@@ -36,12 +36,36 @@ MODEL_CONFIGS = {
 }
 
 
-def main(data_path: str):
+def load_features(data_path: str):
     feature_extractor = FeatureExtractor(data_path)
     data = feature_extractor.data
     base_features = feature_extractor.get_base_features()
-    logger.info(f"Extracted base features for train: \n{base_features.columns}")
+    logger.info(f"Extracted base features for train: \n{base_features.columns.tolist()}")
 
+    flatten_usecols = [
+        "bid_flatten_mean_5",
+        "wap_flatten_5",
+        "bid_flatten_mean_50",
+        "ask_flatten_skew_50",
+        "bid_flatten_kurtosis_50",
+        "ask_flatten_mean_50",
+        "ask_flatten_iqr_50",
+        "ask_flatten_mean_100",
+        "ask_flatten_iqr_100",
+    ]
+    flatten_useranks = sorted(set([int(col.split("_")[-1]) for col in flatten_usecols]))
+    flatten_features = feature_extractor.load_flatten_features(
+        features_directory="artefacts", useranks=flatten_useranks, usecols=flatten_usecols
+    )
+    logger.info(f"Extracted flatten features for train: \n{flatten_features.columns.tolist()}")
+
+    time_features = feature_extractor.get_time_base_features(base_features)
+    merged_features = pd.concat((base_features, flatten_features, time_features), axis=1)
+    return merged_features, data.y
+
+
+def main(data_path: str):
+    merged_features, target = load_features(data_path)
     time_folds = TimeFolds(
         n_folds=5,
         minifold_size=60000,
@@ -49,10 +73,10 @@ def main(data_path: str):
         test_ratio=0.25,
         test_neutral_ratio=0.1,
     )
-    time_folds.fit(base_features, data.y)
+    time_folds.fit(merged_features, target)
 
-    cross_val_runner = CrossValRunner(time_folds, **MODEL_CONFIGS["default_ridge"])
-    cross_val_runner.fit(verbose=True)
+    ridge_runner = CrossValRunner(time_folds, **MODEL_CONFIGS["default_ridge"])
+    ridge_runner.fit(verbose=True)
 
 
 if __name__ == "__main__":

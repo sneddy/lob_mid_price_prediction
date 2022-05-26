@@ -1,7 +1,9 @@
+import os
 from typing import List, Optional
 
 import numpy as np
 import pandas as pd
+from tqdm.auto import tqdm
 
 from xtx.utils.modeling_utils import shrink_dtype
 
@@ -85,11 +87,76 @@ class FeatureExtractor:
         # base_features['increased_askbid_counts'] = (data[ask_size_cols + bid_size_cols].diff(1) > 0).sum(axis=1)
         # base_features['decreased_askbid_counts'] = (data[ask_size_cols + bid_size_cols].diff(1) < 0).sum(axis=1)
 
-        # shrink_dtype(base_features)
+        shrink_dtype(base_features)
         if usecols is None:
             return base_features
 
         return base_features[usecols]
+
+    def get_time_base_features(self, base_features: pd.DataFrame, usecols: Optional[List[str]] = None) -> pd.DataFrame:
+        time_features = pd.DataFrame()
+        for window in (3, 5, 10, 20, 40, 80):
+            # ask bid size changes
+            ask_size_diff = self.data[self.ask_size_cols].diff(window)
+            bid_size_diff = self.data[self.bid_size_cols].diff(window)
+
+            time_features["increased_ask_counts"] = (ask_size_diff > 0).sum(axis=1)
+            time_features["decreased_ask_counts"] = (ask_size_diff < 0).sum(axis=1)
+
+            # time_features[f'increased_ask_counts_{window}_volume'] = (ask_size_diff * (ask_size_diff > 0)).sum(1)
+            # time_features[f'decreased_ask_counts_{window}_volume'] = (-ask_size_diff * (ask_size_diff < 0)).sum(1)
+
+            time_features["increased_bid_counts"] = (bid_size_diff > 0).sum(axis=1)
+            time_features["decreased_bid_counts"] = (bid_size_diff < 0).sum(axis=1)
+
+            time_features[f"volume_imbalance_{window}"] = base_features["volume_imbalance"].diff(window)
+            time_features[f"mid_price_log_{window}"] = base_features[f"mid_price_log"].diff(window)
+
+        for window in (40, 80):
+            # time_features[f'mid_price_log_std_{window}'] = base_features[f'mid_price_log'].rolling(window).std()
+            # time_features[f'mid_price_log_mean_diff_{window}'] = base_features[f'mid_price_log'].rolling(window).mean() - base_features[f'mid_price_log']
+            time_features[f"mid_price_log_max_diff_{window}"] = (
+                base_features[f"mid_price_log"].rolling(window).max() - base_features[f"mid_price_log"]
+            )
+            # time_features[f'mid_price_log_std_{window}'] = base_features[f'mid_price_log'].diff(window).rolling(window).std()
+
+        for window in (10, 20, 40, 80):
+            time_features[f"wap0_{window}_mean"] = base_features["wap0"].rolling(window).mean()
+            time_features[f"wap0_{window}_std"] = base_features["wap0"].rolling(window).std()  # overfit?
+            time_features[f"wap0_{window}_max"] = base_features["wap0"].rolling(window).max()  # overfit?
+
+            # time_features[f'wap1_{window}_mean'] = base_features['wap1'].rolling(window).mean()
+            # time_features[f'wap1_{window}_std'] = base_features['wap1'].rolling(window).std() #overfit?
+            # time_features[f'wap1_{window}_max'] = base_features['wap1'].rolling(window).max() #overfit?
+
+            time_features[f"volume_imbalance_{window}_mean"] = base_features["volume_imbalance"].rolling(window).mean()
+            time_features[f"volume_imbalance_{window}_max"] = base_features["volume_imbalance"].rolling(window).max()
+            time_features[f"volume_imbalance_{window}_std"] = base_features["volume_imbalance"].rolling(window).std()
+            time_features[f"volume_imbalance_{window}_skew"] = base_features["volume_imbalance"].rolling(window).skew()
+            # time_features[f'volume_imbalance_{window}_iqr'] = base_features['volume_imbalance'].rolling(window).quantile(0.75) - \
+            # time_features['volume_imbalance'].rolling(window).quantile(0.25)
+            time_features[f"len_ratio_{window}_mean"] = base_features["len_ratio"].rolling(window).mean()
+            time_features[f"len_ratio_{window}_std"] = base_features["len_ratio"].rolling(window).std()
+        shrink_dtype(time_features)
+        if usecols is None:
+            return time_features
+        return time_features[usecols]
+
+    def load_flatten_features(self, features_directory: str, useranks: List[int], usecols: Optional[List[str]] = None):
+        """Loads precalculated flatten features
+        Args:
+            features_directory (str): path to directory with calculated flatten features
+            useranks (List[int]): ranks to load
+            usecols (Optional, optional): Features to load. Defaults to None.
+        """
+        features_list = []
+        for n_per_row in tqdm(useranks):
+            data_fpath = os.path.join(features_directory, f"features_{n_per_row}.pkl")
+            current_features = pd.read_pickle(data_fpath)
+            shrink_dtype(current_features)
+            features_list.append(current_features)
+        topk_features = pd.concat(features_list, axis=1)
+        return topk_features[usecols]
 
     def _read_data(self):
         extension = self.data_path.split(".")[-1]
