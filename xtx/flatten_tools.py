@@ -12,13 +12,13 @@ def flatten(row, n=-1, ask=True, fillna=False) -> List[float]:
             Otherwise returns n largest bid rates
         n (int): number of rates to return. If n==-1 then n not limited
     """
-    assert fillna or n!=-1
-    prefix = 'ask' if ask else 'bid'
+    assert fillna or n != -1
+    prefix = "ask" if ask else "bid"
 
     outputs = []
     for idx in range(15):
-        col_rate = row[f'{prefix}Rate{idx}']
-        col_size = row[f'{prefix}Size{idx}'].astype(int)
+        col_rate = row[f"{prefix}Rate{idx}"]
+        col_size = row[f"{prefix}Size{idx}"].astype(int)
         n_rest = n - len(outputs)
         if n == -1 or col_size < n_rest:
             outputs.extend([col_rate] * col_size)
@@ -31,13 +31,13 @@ def flatten(row, n=-1, ask=True, fillna=False) -> List[float]:
         outputs.extend([rest_values] * n_rest)
     return outputs
 
-def flatten_series(row, n:int, ask=True) -> pd.Series:
-    assert n!=-1, ValueError()
-    
-    prefix = 'ask' if ask else 'bid'
+
+def flatten_series(row, n: int, ask=True) -> pd.Series:
+    assert n != -1, ValueError()
+
+    prefix = "ask" if ask else "bid"
     outputs = flatten(row=row, n=n, ask=ask, fillna=True)
-    return pd.Series(outputs, index=[f'{prefix}#{i}' for i in range(n)])
-    
+    return pd.Series(outputs, index=[f"{prefix}#{i}" for i in range(n)])
 
 
 ask_flatten = functools.partial(flatten, ask=True)
