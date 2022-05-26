@@ -5,7 +5,6 @@ from contexttimer import Timer
 from pandarallel import pandarallel
 
 from xtx.flatten_tools import ask_flatten, bid_flatten, flatten
-from xtx.sparse_book import SparseBookFactory
 from xtx.utils import init_logger
 
 pandarallel.initialize(progress_bar=False)

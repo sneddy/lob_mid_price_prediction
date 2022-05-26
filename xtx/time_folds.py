@@ -73,9 +73,7 @@ class TimeFolds:
     def get_validation_idxs(self, fold_id) -> np.ndarray:
         selected_idx = np.where(self.folds == fold_id)[0]
         minifold_idx = selected_idx % self.minifold_size
-        selected_pos_in_idx = np.where(
-            (self.skip_bot_thr < minifold_idx) & (minifold_idx < self.skip_top_thr)
-        )[0]
+        selected_pos_in_idx = np.where((self.skip_bot_thr < minifold_idx) & (minifold_idx < self.skip_top_thr))[0]
         return selected_idx[selected_pos_in_idx]
 
     def get_valid_data(self, fold_id: int, include_minifolds=False):

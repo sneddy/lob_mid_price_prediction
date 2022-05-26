@@ -10,9 +10,7 @@ import seaborn as sns
 def draw_lgbm_feature_importance(clf, columns: List[str]):
     warnings.simplefilter(action="ignore", category=FutureWarning)
 
-    feature_imp = pd.DataFrame(
-        sorted(zip(clf.feature_importances_, columns)), columns=["Value", "Feature"]
-    )
+    feature_imp = pd.DataFrame(sorted(zip(clf.feature_importances_, columns)), columns=["Value", "Feature"])
 
     plt.figure(figsize=(20, 10))
     sns.barplot(

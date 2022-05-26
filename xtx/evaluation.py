@@ -34,9 +34,7 @@ class CrossValReport:
         if self.test_target is None:
             self.test_target = test_target
         else:
-            assert (self.test_target == test_target).all(), ValueError(
-                "Got different test target by folds"
-            )
+            assert (self.test_target == test_target).all(), ValueError("Got different test target by folds")
         if self.averaged_test_predicted is None:
             self.averaged_test_predicted = test_predicted / self.n_folds
         else:
@@ -100,9 +98,7 @@ class CrossValReport:
             ("test", "corr"): self.test_corr_scores,
         }
         df = pd.DataFrame.from_dict(df_dict).T.reset_index()
-        df.columns = ["dataset", "metric_name"] + [
-            f"fold_{idx}" for idx in range(self.n_folds)
-        ]
+        df.columns = ["dataset", "metric_name"] + [f"fold_{idx}" for idx in range(self.n_folds)]
         return df.round(3)
 
     def __repr__(self) -> str:
@@ -166,9 +162,7 @@ class CrossValRunner:
 
             val_predicted = model.predict(fold_processor.valid_data)
 
-            valid_idxs = self.time_folds.get_validation_idxs(fold_id)[
-                fold_processor.valid_idxs
-            ]
+            valid_idxs = self.time_folds.get_validation_idxs(fold_id)[fold_processor.valid_idxs]
             self.oof[valid_idxs] = val_predicted
             self.report.update_val(val_predicted, fold_processor.valid_target)
             test_predicted = model.predict(fold_processor.test_data)

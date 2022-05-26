@@ -23,15 +23,12 @@ class FeatureExtractor:
         self.bid_size = [self.data.loc[:, col] for col in self.bid_size_cols]
 
     def calc_wap(self, order: int):
-        return (
-            self.bid_rate[order] * self.ask_size[order]
-            + self.ask_rate[order] * self.bid_size[order]
-        ) / (self.ask_size[order] + self.bid_size[order])
-
-    def calc_volume_imbalance(self, order: int):
-        return (self.bid_size[order] - self.ask_size[order]) / (
+        return (self.bid_rate[order] * self.ask_size[order] + self.ask_rate[order] * self.bid_size[order]) / (
             self.ask_size[order] + self.bid_size[order]
         )
+
+    def calc_volume_imbalance(self, order: int):
+        return (self.bid_size[order] - self.ask_size[order]) / (self.ask_size[order] + self.bid_size[order])
 
     def calc_cum_volume_imbalance(self, order: int):
         cum_bid_size = self.data[self.bid_size_cols[:order]].sum(axis=1)
@@ -71,27 +68,19 @@ class FeatureExtractor:
         ask_size_diff.columns = np.arange(15)
         base_features["increased_ask_counts"] = (ask_size_diff > 0).sum(axis=1)
         base_features["increased_ask_rank"] = (ask_size_diff > 0).idxmax(axis=1)
-        base_features.loc[
-            base_features["increased_ask_counts"] == 0, "increased_ask_rank"
-        ] = 15
+        base_features.loc[base_features["increased_ask_counts"] == 0, "increased_ask_rank"] = 15
         base_features["decreased_ask_counts"] = (ask_size_diff < 0).sum(axis=1)
         base_features["decreased_ask_rank"] = (ask_size_diff < 0).idxmax(axis=1)
-        base_features.loc[
-            base_features["decreased_ask_counts"] == 0, "decreased_ask_rank"
-        ] = 15
+        base_features.loc[base_features["decreased_ask_counts"] == 0, "decreased_ask_rank"] = 15
 
         bid_size_diff = self.data[self.bid_size_cols].diff(1)
         bid_size_diff.columns = np.arange(15)
         base_features["increased_bid_counts"] = (bid_size_diff > 0).sum(axis=1)
         base_features["increased_bid_rank"] = (bid_size_diff > 0).idxmax(axis=1)
-        base_features.loc[
-            base_features["increased_bid_counts"] == 0, "increased_bid_rank"
-        ] = 15
+        base_features.loc[base_features["increased_bid_counts"] == 0, "increased_bid_rank"] = 15
         base_features["decreased_bid_counts"] = (bid_size_diff < 0).sum(axis=1)
         base_features["decreased_bid_rank"] = (bid_size_diff < 0).idxmax(axis=1)
-        base_features.loc[
-            base_features["decreased_bid_counts"] == 0, "decreased_bid_rank"
-        ] = 15
+        base_features.loc[base_features["decreased_bid_counts"] == 0, "decreased_bid_rank"] = 15
 
         # base_features['increased_askbid_counts'] = (data[ask_size_cols + bid_size_cols].diff(1) > 0).sum(axis=1)
         # base_features['decreased_askbid_counts'] = (data[ask_size_cols + bid_size_cols].diff(1) < 0).sum(axis=1)
@@ -109,7 +98,5 @@ class FeatureExtractor:
         elif extension == "pkl":
             data = pd.read_pickle(self.data_path)
         else:
-            raise ValueError(
-                f"Incorrect extension of {self.data_path}. Expected .csv or .pkl"
-            )
+            raise ValueError(f"Incorrect extension of {self.data_path}. Expected .csv or .pkl")
         return data.fillna(0)

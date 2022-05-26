@@ -16,9 +16,7 @@ def init_seed(SEED=42):
 
 
 def init_logger(log_path: str):
-    formatter = logging.Formatter(
-        "\n%(asctime)s\t%(message)s", datefmt="%m/%d/%Y %H:%M:%S"
-    )
+    formatter = logging.Formatter("\n%(asctime)s\t%(message)s", datefmt="%m/%d/%Y %H:%M:%S")
     log_dir = os.path.dirname(log_path)
     os.makedirs(log_dir, exist_ok=True)
 
