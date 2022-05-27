@@ -3,3 +3,6 @@
 *.csv
 *.pickle
 artefacts/*
+.DS_Store
+data/
+runners/
