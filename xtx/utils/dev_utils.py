@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import yaml
 
 
 def init_seed(SEED=42):
@@ -31,3 +32,9 @@ def init_logger(log_path: str):
     logger.addHandler(handler)
     logger.addHandler(logging.StreamHandler(sys.stdout))
     return logger
+
+
+def load_yaml(file_name):
+    with open(file_name, "r") as stream:
+        config = yaml.load(stream, Loader=yaml.SafeLoader)
+    return config

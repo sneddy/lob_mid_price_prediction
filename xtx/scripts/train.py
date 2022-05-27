@@ -1,44 +1,28 @@
+import os
+from typing import Any, Dict, Optional
+
 import pandas as pd
 
+import xtx.utils.dev_utils as dev_utils
 from xtx.features.feature_extractor import FeatureExtractor
-from xtx.modeling.runners import CrossValRunner
+from xtx.modeling.runners import CrossValClassificationRunner, CrossValRunner
+from xtx.modeling.stacking import RunnersStacking
 from xtx.modeling.time_folds import TimeFolds
-from xtx.utils.dev_utils import init_logger
 
 pd.set_option("display.max_columns", 100)
 
-logger = init_logger("logging/train.log")
-
-MODEL_CONFIGS = {
-    "default_ridge": {
-        "model_module": "sklearn.linear_model",
-        "model_cls": "Ridge",
-        "model_params": {"alpha": 100},
-    },
-    "default_lasso": {
-        "model_module": "sklearn.linear_model",
-        "model_cls": "Lasso",
-        "model_params": {"alpha": 0.01},
-    },
-    "default_lgbm": {
-        "model_module": "lightgbm",
-        "model_cls": "LGBMRegressor",
-        "model_params": {
-            "n_jobs": -1,
-            "num_leaves": 13,
-            "learning_rate": 0.01,
-            "n_estimators": 500,
-            "reg_lambda": 1,
-            "colsample_bytree": 0.7,
-            "subsample": 0.05,
-        },
-    },
-}
+logger = dev_utils.init_logger("logging/train.log")
 
 
-def load_features(data_path: str):
+def load_features(data_path: str, features_path: str, use_cache=False):
     feature_extractor = FeatureExtractor(data_path)
     data = feature_extractor.data
+
+    if use_cache and features_path is not None and os.path.exists(features_path):
+        os.makedirs(os.path.dirname(features_path), exist_ok=True)
+        merged_features = pd.read_pickle(features_path)
+        return merged_features, data.y
+
     base_features = feature_extractor.get_base_features()
     logger.info(f"Extracted base features for train: \n{base_features.columns.tolist()}")
 
@@ -62,11 +46,38 @@ def load_features(data_path: str):
 
     time_features = feature_extractor.get_time_base_features(base_features)
     merged_features = pd.concat((base_features, flatten_features, time_features), axis=1)
+
+    if use_cache:
+        merged_features.to_pickle(features_path)
     return merged_features, data.y
 
 
-def main(data_path: str):
-    merged_features, target = load_features(data_path)
+def build_runners(
+    time_folds,
+    model_congigs: Dict[str, Dict[str, Any]],
+    runners_dir: str,
+    use_cache: bool = True,
+    regression: bool = True,
+) -> Dict[str, CrossValRunner]:
+    runners = {}
+    for name, model_config in model_congigs.items():
+        cached_runner_dir = os.path.join(runners_dir, name)
+        if use_cache and CrossValRunner.cache_exists(cached_runner_dir):
+            runners[name] = CrossValRunner.load(cached_runner_dir)
+            logger.info(runners[name].report)
+        else:
+            if regression:
+                current_runner = CrossValRunner(time_folds, **model_config)
+            else:
+                current_runner = CrossValClassificationRunner(n_classes=3, time_folds=time_folds, **model_config)
+            current_runner.fit(verbose=True)
+            runners[name] = current_runner
+            current_runner.save(cached_runner_dir)
+    return runners
+
+
+def main(data_path: str, features_path: Optional[str] = None):
+    merged_features, target = load_features(data_path, features_path, use_cache=True)
     time_folds = TimeFolds(
         n_folds=5,
         minifold_size=60000,
@@ -76,10 +87,28 @@ def main(data_path: str):
     )
     time_folds.fit(merged_features, target)
 
-    ridge_runner = CrossValRunner(time_folds, **MODEL_CONFIGS["default_ridge"])
-    ridge_runner.fit(verbose=True)
+    model_zoo = dev_utils.load_yaml("configs/models_zoo.yaml")["zoo"]
+    use_regression_models = [
+        "default_ridge",
+        "default_lasso",
+        "default_lgbm_v4",
+        # "wild_lgbm",
+        "bayesian_ridge",
+    ]
+    use_classification_models = []  # ["default_logreg"]
+    clf_model_configs = {model_name: model_zoo[model_name] for model_name in use_classification_models}
+    reg_model_configs = {model_name: model_zoo[model_name] for model_name in use_regression_models}
+
+    clf_runners = build_runners(time_folds, clf_model_configs, runners_dir="runners/5_folds", regression=False)
+    reg_runners = build_runners(time_folds, reg_model_configs, runners_dir="runners/5_folds", regression=True)
+
+    runners_stacking = RunnersStacking(reg_runners, clf_runners)
+    runners_stacking.make_oof_ensemble()
+    runners_stacking.make_test_ensemble()
+    runners_stacking.make_ridge_stacking()
 
 
 if __name__ == "__main__":
     DATA_PATH = "data/data.pkl"
-    main(DATA_PATH)
+    features_path = "data/features.pkl"
+    main(DATA_PATH, features_path)

@@ -8,6 +8,15 @@ from sklearn.metrics import mean_squared_error
 from xtx.modeling.preprocessing import FoldPreprocessor
 
 
+def get_mse_and_corr_scores(gt, predicted, verbose=False, prefix=None):
+    prefix = "" if prefix is None else prefix
+    mse_score = mean_squared_error(gt, predicted)
+    corr_score = np.corrcoef(gt, predicted)[0, 1]
+    if verbose:
+        print(f"{prefix} MSE score: {mse_score:.4f}; {prefix} Corr score: {corr_score:.4f}")
+    return mse_score, corr_score
+
+
 class CrossValReport:
     """Calculate and store relevant metrics and statistics"""
 
@@ -20,13 +29,12 @@ class CrossValReport:
         self.test_mse_scores: List[float] = []
         self.test_corr_scores: List[float] = []
 
-    def update_val(self, val_predicted: np.ndarray, val_target: np.ndarray):
-        corr_score = np.corrcoef(val_predicted, val_target)[0, 1]
-        mse_score = mean_squared_error(val_predicted, val_target)
+    def update_val(self, val_target: np.ndarray, val_predicted: np.ndarray):
+        mse_score, corr_score = get_mse_and_corr_scores(val_target, val_predicted)
         self.val_corr_scores.append(corr_score)
         self.val_mse_scores.append(mse_score)
 
-    def update_test(self, test_predicted: np.ndarray, test_target: np.ndarray):
+    def update_test(self, test_target: np.ndarray, test_predicted: np.ndarray):
         if self.test_target is None:
             self.test_target = test_target
         else:
@@ -36,8 +44,7 @@ class CrossValReport:
         else:
             self.averaged_test_predicted += test_predicted / self.n_folds
 
-        corr_score = np.corrcoef(test_predicted, test_target)[0, 1]
-        mse_score = mean_squared_error(test_predicted, test_target)
+        mse_score, corr_score = get_mse_and_corr_scores(test_target, test_predicted)
         self.test_corr_scores.append(corr_score)
         self.test_mse_scores.append(mse_score)
 
@@ -79,11 +86,11 @@ class CrossValReport:
 
     @property
     def test_averaged_mse(self) -> float:
-        return mean_squared_error(self.averaged_test_predicted, self.test_target)
+        return mean_squared_error(self.test_target, self.averaged_test_predicted)
 
     @property
     def test_averaged_corr(self) -> float:
-        return np.corrcoef(self.averaged_test_predicted, self.test_target)[0, 1]
+        return np.corrcoef(self.test_target, self.averaged_test_predicted)[0, 1]
 
     @property
     def folds_report(self) -> pd.DataFrame:
@@ -109,6 +116,10 @@ class CrossValReport:
         """
         return self.folds_report.to_markdown() + aggregated_repr
 
+    def save(self, report_path: str):
+        with open(report_path, "w") as output_stream:
+            output_stream.writelines(self.__repr__())
+
 
 def ridge_eval(time_folds, fold_id, ridge_alpha=100, verbose=True):
     fold_processor = FoldPreprocessor(time_folds, fold_id)
@@ -117,15 +128,10 @@ def ridge_eval(time_folds, fold_id, ridge_alpha=100, verbose=True):
 
     model.fit(fold_processor.train_data, fold_processor.train_target)
     predicted = model.predict(fold_processor.valid_data)
-    corr_score = np.corrcoef(predicted, fold_processor.valid_target)[0, 1]
-    mse_score = mean_squared_error(predicted, fold_processor.valid_target)
+    mse_score, corr_score = get_mse_and_corr_scores(fold_processor.valid_target, predicted, verbose, prefix="val")
 
     test_predicted = model.predict(fold_processor.test_data)
-    test_corr_score = np.corrcoef(test_predicted, fold_processor.test_target)[0, 1]
-    test_mse_score = mean_squared_error(test_predicted, fold_processor.test_target)
-    if verbose:
-        print(f"Val correlation: {corr_score:.4f}")
-        print(f"Val MSE: {mse_score:.4f}")
-        print(f"Test correlation: {test_corr_score:.4f}")
-        print(f"Test MSE: {test_mse_score:.4f}")
+    test_mse_score, test_corr_score = get_mse_and_corr_scores(
+        fold_processor.test_target, test_predicted, verbose, prefix="test"
+    )
     return mse_score, test_mse_score

@@ -1,0 +1,90 @@
+zoo:
+    default_ridge:
+        model_module: sklearn.linear_model
+        model_cls: Ridge
+        model_params:
+          alpha: 100
+    bayesian_ridge:
+        model_module: sklearn.linear_model
+        model_cls: BayesianRidge
+        model_params:
+    wild_ridge: 
+        model_module: sklearn.linear_model
+        model_cls: Ridge
+        model_params: 
+          alpha: 10
+    default_lasso: 
+        model_module: sklearn.linear_model
+        model_cls: Lasso
+        model_params: 
+          alpha: 0.01
+    default_logreg:
+        model_module: sklearn.linear_model
+        model_cls: LogisticRegression
+        model_params: 
+            C: 1
+            n_jobs: -1   
+    default_lgbm: 
+        model_module: lightgbm
+        model_cls: LGBMRegressor
+        model_params: 
+            n_jobs: -1
+            num_leaves: 13
+            learning_rate: 0.01
+            n_estimators: 1000
+            reg_lambda: 1
+            colsample_bytree: 0.7
+            subsample: 0.05
+            force_col_wise: True
+    default_lgbm_v2: 
+        model_module: lightgbm
+        model_cls: LGBMRegressor
+        model_params: 
+            n_jobs: -1
+            num_leaves: 13
+            learning_rate: 0.01
+            n_estimators: 1000
+            reg_lambda: 10
+            reg_alpha: 2
+            colsample_bytree: 0.5
+            subsample: 0.05
+            force_col_wise: True
+    default_lgbm_v3: 
+        model_module: lightgbm
+        model_cls: LGBMRegressor
+        model_params: 
+            n_jobs: -1
+            num_leaves: 9
+            learning_rate: 0.01
+            n_estimators: 1000
+            reg_lambda: 10
+            reg_alpha: 10
+            colsample_bytree: 0.5
+            subsample: 0.05
+            force_col_wise: True
+    default_lgbm_v4: 
+        model_module: lightgbm
+        model_cls: LGBMRegressor
+        model_params: 
+            n_jobs: -1
+            num_leaves: 9
+            learning_rate: 0.03
+            n_estimators: 500
+            reg_lambda: 10
+            reg_alpha: 10
+            colsample_bytree: 0.6
+            subsample: 0.25
+            force_col_wise: True
+    wild_lgbm: 
+        model_module: lightgbm
+        model_cls: LGBMRegressor
+        model_params: 
+            n_jobs: -1
+            num_leaves: 13
+            learning_rate: 0.001
+            n_estimators: 2000
+            reg_lambda: 10
+            reg_alpha: 2
+            colsample_bytree: 0.5
+            subsample: 0.05
+            force_col_wise: True

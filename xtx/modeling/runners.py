@@ -1,5 +1,9 @@
+from __future__ import annotations
+
 import importlib
-from typing import Any, Dict, Optional
+import os
+import pickle
+from typing import Any
 
 import lightgbm as lgb
 import numpy as np
@@ -22,7 +26,7 @@ class CrossValRunner:
         time_folds: TimeFolds,
         model_module: str,
         model_cls: str,
-        model_params: Optional[Dict[str, Any]] = None,
+        model_params: dict[str, Any] | None = None,
     ):
         # assert time_folds.neutral_ratio == 0, "Cant calculate oof on split with neutral"
         self.time_folds = time_folds
@@ -31,9 +35,9 @@ class CrossValRunner:
         self.model_params = {} if model_params is None else model_params
 
         self.oof = np.full(self.time_folds.train_size, np.nan)
-        self.averaged_test = None
         self.scores = []
         self.trained_models = []
+        self.scalers = []
         self.report = CrossValReport(time_folds.n_folds)
 
     def init_model(self):
@@ -42,40 +46,142 @@ class CrossValRunner:
         model_cls = getattr(module, self.model_cls)
         return model_cls(**self.model_params)
 
+    def _fit(self, model, fold_processor):
+        if model.__class__ == lgb.LGBMRegressor:
+            model.fit(
+                fold_processor.train_data,
+                fold_processor.train_target,
+                eval_set=[(fold_processor.valid_data, fold_processor.valid_target)],
+                callbacks=[lgb.early_stopping(50), lgb.log_evaluation(100)],
+            )
+        else:
+            model.fit(fold_processor.train_data, fold_processor.train_target)
+        self.trained_models.append(model)
+
+    def _val_predict(self, model, fold_processor):
+        val_predicted = model.predict(fold_processor.valid_data)
+        fold_id = fold_processor.fold_id
+        valid_idxs = self.time_folds.get_validation_idxs(fold_id)[fold_processor.valid_idxs]
+        self.oof[valid_idxs] = val_predicted
+        self.report.update_val(fold_processor.valid_target, val_predicted)
+
+    def _test_predict(self, model, fold_processor):
+        test_predicted = model.predict(fold_processor.test_data)
+        self.report.update_test(fold_processor.test_target, test_predicted)
+
     def fit(self, verbose: bool = False):
         progress_bar = tqdm(range(self.time_folds.n_folds))
         for fold_id in progress_bar:
             model = self.init_model()
             fold_processor = FoldPreprocessor(self.time_folds, fold_id)
-            if model.__class__ == lgb.LGBMRegressor:
-                model.fit(
-                    fold_processor.train_data,
-                    fold_processor.train_target,
-                    eval_set=[(fold_processor.valid_data, fold_processor.valid_target)],
-                    callbacks=[lgb.early_stopping(50), lgb.log_evaluation(100)],
-                )
-            else:
-                model.fit(fold_processor.train_data, fold_processor.train_target)
+            self.scalers.append(fold_processor.scaler)
+            self._fit(model, fold_processor)
+            self._val_predict(model, fold_processor)
+            self._test_predict(model, fold_processor)
 
-            val_predicted = model.predict(fold_processor.valid_data)
-
-            valid_idxs = self.time_folds.get_validation_idxs(fold_id)[fold_processor.valid_idxs]
-            self.oof[valid_idxs] = val_predicted
-            self.report.update_val(val_predicted, fold_processor.valid_target)
-            test_predicted = model.predict(fold_processor.test_data)
-            self.report.update_test(test_predicted, fold_processor.test_target)
-            self.trained_models.append(model)
             progress_bar.set_description(
                 f"Val_mse: {self.report.val_mse_mean:.3f}, \
                  val_corr: {self.report.val_corr_mean:.3f}"
             )
-        self.averaged_test = self.report.averaged_test_predicted
         if verbose:
             print(self.report)
 
-    def predict(self, unseen_features: pd.DataFrame):
-        raise NotImplementedError()
+    @property
+    def averaged_test(self):
+        return self.report.averaged_test_predicted
 
-    def save(self):
+    @property
+    def test_target(self):
+        return self.report.test_target
+
+    @property
+    def oof_target(self):
+        nan_idxs = np.isnan(self.oof)
+        return self.time_folds.target[: self.time_folds.train_size].values[~nan_idxs]
+
+    @property
+    def oof_features(self):
+        nan_idxs = np.isnan(self.oof)
+        return self.oof[~nan_idxs]
+
+    def predict(self, unseen_features: pd.DataFrame):
+        """Make ensemble prediction by some unseen features"""
+        averaged_predictions = np.zeros(unseen_features.shape[0])
+        for fold_id in range(self.time_folds.n_folds):
+            model = self.trained_models[fold_id]
+            scaler = self.scalers[fold_id]
+            features = scaler.transform(unseen_features.fillna(0))
+            averaged_predictions += model.predict(features) / self.time_folds.n_folds
+        return averaged_predictions
+
+    def save(self, runner_dir: str):
         """save models, oof, test"""
+        print(f"Saving runner to {runner_dir}")
+        os.makedirs(runner_dir, exist_ok=True)
+        pickle.dump(self, open(os.path.join(runner_dir, "runner.pkl"), "wb"))
+        self.report.save(os.path.join(runner_dir, "report.txt"))
+
+        np.save(os.path.join(runner_dir, "oof_predictions"), self.oof_features)
+        np.save(os.path.join(runner_dir, "oof_target"), self.oof_target)
+        np.save(os.path.join(runner_dir, "test_predictions"), self.averaged_test)
+        np.save(os.path.join(runner_dir, "test_target"), self.test_target)
+
+    @classmethod
+    def load(cls, runner_dir: str) -> CrossValRunner:
+        print(f"Loading runner from {runner_dir}")
+        runner_path = os.path.join(runner_dir, "runner.pkl")
+        return np.load(runner_path, allow_pickle=True)
+
+    @classmethod
+    def cache_exists(cls, runner_dir) -> bool:
+        runner_path = os.path.join(runner_dir, "runner.pkl")
+        return os.path.exists(runner_path)
+
+
+class CrossValClassificationRunner(CrossValRunner):
+    def __init__(
+        self,
+        n_classes,
+        time_folds: TimeFolds,
+        model_module: str,
+        model_cls: str,
+        model_params: dict[str, Any] | None = None,
+    ):
+        super().__init__(time_folds, model_module, model_cls, model_params)
+        self.n_classes = n_classes
+        self.oof_probas = np.full((self.time_folds.train_size, self.n_classes), np.nan)
+        self.test_class_probas = np.zeros((self.time_folds.test_size_without_neutral, self.n_classes))
+
+    def _fit(self, model, fold_processor):
+        model.fit(fold_processor.train_data, np.sign(fold_processor.train_target))
+        self.trained_models.append(model)
+
+    @classmethod
+    def _probas2prediction(self, probas: np.ndarray) -> np.ndarray:
+        return (probas[:, 2] - probas[:, 0]) * (1 - probas[:, 1])
+
+    def _val_predict(self, model, fold_processor):
+        val_probas = model.predict_proba(fold_processor.valid_data)
+        val_predicted = self._probas2prediction(val_probas)
+
+        fold_id = fold_processor.fold_id
+        valid_idxs = self.time_folds.get_validation_idxs(fold_id)[fold_processor.valid_idxs]
+        self.oof[valid_idxs] = val_predicted
+        self.oof_probas[valid_idxs] = val_probas
+        self.report.update_val(fold_processor.valid_target, val_predicted)
+
+    def _test_predict(self, model, fold_processor):
+        test_probas = model.predict_proba(fold_processor.test_data)
+        self.test_class_probas += test_probas / self.time_folds.n_folds
+        test_predicted = self._probas2prediction(test_probas)
+        self.report.update_test(fold_processor.test_target, test_predicted)
+
+    @property
+    def oof_class_probas(self):
+        nan_idxs = np.isnan(self.oof)
+        return self.oof_probas[~nan_idxs]
+
+
+class Stacking:
+    def __init__(self):
         pass
