@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pandas as pd
 import scipy.stats
@@ -70,14 +72,13 @@ def extract_flatten_features(data: pd.DataFrame, n: int) -> pd.DataFrame():
             (features[f"ask_flatten_mean_{n}"] * features[f"bid_flatten_len_{n}"])
             + (features[f"bid_flatten_mean_{n}"] * features[f"ask_flatten_len_{n}"])
         ) / (features[f"ask_flatten_len_{n}"] + features[f"bid_flatten_len_{n}"])
-
+    logger.info(f"Feature interaction time: {interaction_time.elapsed:.4f} sec")
     return ask_flatten_df, bid_flatten_df, features
 
 
 def main():
     n_global = None
     data = read_data(n_global)
-    target_col = "y"
     os.makedirs("artefacts", exist_ok=True)
     for n_per_row in (5, 15, 50, 100):
         ask_flatten_df, bid_flatten_df, features = extract_flatten_features(data, n=n_per_row, fillna=False)

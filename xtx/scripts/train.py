@@ -1,7 +1,7 @@
 import pandas as pd
 
 from xtx.features.feature_extractor import FeatureExtractor
-from xtx.modeling.evaluation import CrossValRunner
+from xtx.modeling.runners import CrossValRunner
 from xtx.modeling.time_folds import TimeFolds
 from xtx.utils.dev_utils import init_logger
 
@@ -45,15 +45,16 @@ def load_features(data_path: str):
     flatten_usecols = [
         "bid_flatten_mean_5",
         "wap_flatten_5",
+        # "ask_flatten_iqr_15",
         "bid_flatten_mean_50",
         "ask_flatten_skew_50",
         "bid_flatten_kurtosis_50",
         "ask_flatten_mean_50",
         "ask_flatten_iqr_50",
-        "ask_flatten_mean_100",
-        "ask_flatten_iqr_100",
+        # "ask_flatten_mean_100",
+        # "ask_flatten_iqr_100",
     ]
-    flatten_useranks = sorted(set([int(col.split("_")[-1]) for col in flatten_usecols]))
+    flatten_useranks = sorted({int(col.split("_")[-1]) for col in flatten_usecols})
     flatten_features = feature_extractor.load_flatten_features(
         features_directory="artefacts", useranks=flatten_useranks, usecols=flatten_usecols
     )
@@ -69,7 +70,7 @@ def main(data_path: str):
     time_folds = TimeFolds(
         n_folds=5,
         minifold_size=60000,
-        neutral_ratio=0.15,
+        neutral_ratio=0.05,
         test_ratio=0.25,
         test_neutral_ratio=0.1,
     )

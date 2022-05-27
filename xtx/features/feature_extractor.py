@@ -95,7 +95,9 @@ class FeatureExtractor:
 
     def get_time_base_features(self, base_features: pd.DataFrame, usecols: Optional[List[str]] = None) -> pd.DataFrame:
         time_features = pd.DataFrame()
+        # time_features["deal_flag"] = ((self.data.askRate0.diff() * self.data.bidRate0.diff()) > 0).astype(np.int8)
         for window in (3, 5, 10, 20, 40, 80):
+            # time_features["increased_ask_counts"]
             # ask bid size changes
             ask_size_diff = self.data[self.ask_size_cols].diff(window)
             bid_size_diff = self.data[self.bid_size_cols].diff(window)
@@ -110,30 +112,31 @@ class FeatureExtractor:
             time_features["decreased_bid_counts"] = (bid_size_diff < 0).sum(axis=1)
 
             time_features[f"volume_imbalance_{window}"] = base_features["volume_imbalance"].diff(window)
-            time_features[f"mid_price_log_{window}"] = base_features[f"mid_price_log"].diff(window)
+            time_features[f"mid_price_log_{window}"] = base_features["mid_price_log"].diff(window)
 
         for window in (40, 80):
-            # time_features[f'mid_price_log_std_{window}'] = base_features[f'mid_price_log'].rolling(window).std()
-            # time_features[f'mid_price_log_mean_diff_{window}'] = base_features[f'mid_price_log'].rolling(window).mean() - base_features[f'mid_price_log']
             time_features[f"mid_price_log_max_diff_{window}"] = (
-                base_features[f"mid_price_log"].rolling(window).max() - base_features[f"mid_price_log"]
+                base_features["mid_price_log"].rolling(window).max() - base_features["mid_price_log"]
             )
-            # time_features[f'mid_price_log_std_{window}'] = base_features[f'mid_price_log'].diff(window).rolling(window).std()
+            # time_features[f'mid_price_log_std_{window}'] = \
+            # base_features[f'mid_price_log'].diff(window).rolling(window).std()
 
         for window in (10, 20, 40, 80):
             time_features[f"wap0_{window}_mean"] = base_features["wap0"].rolling(window).mean()
             time_features[f"wap0_{window}_std"] = base_features["wap0"].rolling(window).std()  # overfit?
             time_features[f"wap0_{window}_max"] = base_features["wap0"].rolling(window).max()  # overfit?
 
-            # time_features[f'wap1_{window}_mean'] = base_features['wap1'].rolling(window).mean()
-            # time_features[f'wap1_{window}_std'] = base_features['wap1'].rolling(window).std() #overfit?
-            # time_features[f'wap1_{window}_max'] = base_features['wap1'].rolling(window).max() #overfit?
+            # time_features[f"wap1_{window}_mean"] = base_features["wap1"].rolling(window).mean()
+            # time_features[f"wap1_{window}_std"] = base_features["wap1"].rolling(window).std()  # overfit?
+            # time_features[f"wap1_{window}_max"] = base_features["wap1"].rolling(window).max()  # overfit?
 
             time_features[f"volume_imbalance_{window}_mean"] = base_features["volume_imbalance"].rolling(window).mean()
             time_features[f"volume_imbalance_{window}_max"] = base_features["volume_imbalance"].rolling(window).max()
             time_features[f"volume_imbalance_{window}_std"] = base_features["volume_imbalance"].rolling(window).std()
             time_features[f"volume_imbalance_{window}_skew"] = base_features["volume_imbalance"].rolling(window).skew()
-            # time_features[f'volume_imbalance_{window}_iqr'] = base_features['volume_imbalance'].rolling(window).quantile(0.75) - \
+
+            # time_features[f'volume_imbalance_{window}_iqr'] = \
+            # base_features['volume_imbalance'].rolling(window).quantile(0.75) - \
             # time_features['volume_imbalance'].rolling(window).quantile(0.25)
             time_features[f"len_ratio_{window}_mean"] = base_features["len_ratio"].rolling(window).mean()
             time_features[f"len_ratio_{window}_std"] = base_features["len_ratio"].rolling(window).std()
