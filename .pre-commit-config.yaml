@@ -27,8 +27,8 @@ repos:
   #     - id: mypy
   #       args: [ --config=setup.cfg ]
   #       exclude: ^scripts/
-  # - repo: https://gitlab.com/pycqa/flake8
-  #   rev: 3.9.1
-  #   hooks:
-  #     - id: flake8
-  #       args: [ --config=setup.cfg ]
+  - repo: https://gitlab.com/pycqa/flake8
+    rev: 3.9.1
+    hooks:
+      - id: flake8
+        args: [ --config=setup.cfg ]
