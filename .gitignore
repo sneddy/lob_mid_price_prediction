@@ -6,3 +6,4 @@ artefacts/*
 .DS_Store
 data/
 runners/
+*__pycache__/*

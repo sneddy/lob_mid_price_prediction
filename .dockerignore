@@ -1,0 +1,9 @@
+.git
+.gitignore
+.vscode
+*.pkl
+*.csv
+*.npy
+data/
+runners*
+artefacts/
