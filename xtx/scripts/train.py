@@ -94,13 +94,16 @@ def main(data_path: str, features_path: Optional[str] = None):
         "default_lgbm_v4",
         # "wild_lgbm",
         "bayesian_ridge",
+        "default_fm",
     ]
-    use_classification_models = []  # ["default_logreg"]
+    use_classification_models = [
+        # "default_logreg"
+    ]
     clf_model_configs = {model_name: model_zoo[model_name] for model_name in use_classification_models}
     reg_model_configs = {model_name: model_zoo[model_name] for model_name in use_regression_models}
 
-    clf_runners = build_runners(time_folds, clf_model_configs, runners_dir="runners/5_folds", regression=False)
-    reg_runners = build_runners(time_folds, reg_model_configs, runners_dir="runners/5_folds", regression=True)
+    clf_runners = build_runners(time_folds, clf_model_configs, runners_dir="runners/5_folds_new", regression=False)
+    reg_runners = build_runners(time_folds, reg_model_configs, runners_dir="runners/5_folds_new", regression=True)
 
     runners_stacking = RunnersStacking(reg_runners, clf_runners)
     runners_stacking.make_oof_ensemble()

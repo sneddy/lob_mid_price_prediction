@@ -1,3 +1,5 @@
+from typing import List
+
 import numpy as np
 import pandas as pd
 
@@ -46,6 +48,12 @@ class TimeFolds:
         if self.df is None:
             return 0
         return self.df.shape[0]
+
+    @property
+    def columns(self):
+        if self.df is None:
+            return
+        return self.df.columns
 
     def fit(self, df: pd.DataFrame, target: pd.Series):
         self.df = df
@@ -100,3 +108,6 @@ class TimeFolds:
 
     def get_test_target(self):
         return self.target[-self.test_size_without_neutral :]
+
+    def get_oof_features(self, usecols: List[str]):
+        pass

@@ -46,6 +46,10 @@ class CrossValRunner:
         model_cls = getattr(module, self.model_cls)
         return model_cls(**self.model_params)
 
+    @property
+    def columns(self):
+        return self.time_folds.columns
+
     def _fit(self, model, fold_processor):
         if model.__class__ == lgb.LGBMRegressor:
             model.fit(

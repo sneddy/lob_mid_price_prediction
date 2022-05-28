@@ -29,3 +29,12 @@ Ideally, your solution should have ‘train’ part that will use data.csv file 
 You'll have writing access to it so that once you have finished, you can upload your solution. There is no particular deadline, you can take your time doing this.
 
 As for benchmark scores, on test dataset 0.17 correlation is very good, while 0.15 correlation is mediocre (can be achieved with reasonable linear model). (used correlation here just for optics, objective function is MSE)
+
+## Solution Overview
+- extract features:
+    - common sense features
+    - topk row aggregations from flatten features:
+    Example: askRate0 = 1000, askRate1 = 1001, askSize0= 1, askSize1: 2
+    askFlattenFeatures = [1000, 1001, 1001]
+    - time features: different time aggregations of common sense features with small period
+- 5Fold and 10Fold cross-validation with minibatches

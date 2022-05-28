@@ -18,12 +18,25 @@ zoo:
         model_cls: Lasso
         model_params: 
           alpha: 0.01
+    default_fm:
+        model_module: pyfm.pylibfm
+        model_cls: FM
+        model_params:
+            num_factors: 10
+            num_iter: 100
+            verbose: True
+            task: regression
+            initial_learning_rate: 0.001
+            learning_rate_schedule: optimal
     default_logreg:
         model_module: sklearn.linear_model
         model_cls: LogisticRegression
         model_params: 
             C: 1
-            n_jobs: -1   
+            n_jobs: -1 
+            solver: saga
+            tol: 0.01
+            # penalty: elasticnet
     default_lgbm: 
         model_module: lightgbm
         model_cls: LGBMRegressor

@@ -1,30 +1,47 @@
+import itertools
 from typing import Dict, List, Optional
 
 import numpy as np
 
 from xtx.modeling.evaluation import get_mse_and_corr_scores
-from xtx.modeling.runners import CrossValRunner
-
-RunnersDict = Dict[str, CrossValRunner]
+from xtx.modeling.runners import CrossValClassificationRunner, CrossValRunner
 
 
 class RunnersStacking:
     def __init__(
         self,
-        reg_runners: Optional[RunnersDict] = None,
-        clf_runners: Optional[RunnersDict] = None,
+        reg_runners: Optional[Dict[str, CrossValRunner]] = None,
+        clf_runners: Optional[Dict[str, CrossValClassificationRunner]] = None,
+        additional_features: Optional[np.ndarray] = None,
     ):
-        self.reg_runners = reg_runners
-        self.clf_runners = clf_runners
+        self.reg_runners = {} if reg_runners is None else reg_runners
+        self.clf_runners = {} if clf_runners is None else clf_runners
+        self.additional_features = additional_features
+
+        self.runner_columns = None
+        self.test_target = None
+        self.check_consistency()
+
+    def _check_runner_consistensy(self, runner):
+        if self.runner_columns is None:
+            self.runner_columns = runner.columns
+        else:
+            assert (self.runner_columns == runner.columns).all(), ValueError("Inconsistent columns")
+        if self.test_target is None:
+            self.test_target = runner.test_target
+        else:
+            assert (self.test_target == runner.test_target).all(), ValueError("Inconsistent test target")
+
+    def check_consistency(self):
+        for name, runner in itertools.chain(self.reg_runners.items(), self.clf_runners.items()):
+            self._check_runner_consistensy(runner)
 
     @property
     def oof_ensembling_features(self) -> np.ndarray:
         """Return OutOfFold features only from scores"""
         oof_scores_list = []
-        if self.reg_runners is not None:
-            oof_scores_list.extend([runner.oof_features for name, runner in self.reg_runners.items()])
-        if self.clf_runners is not None:
-            oof_scores_list.extend([runner.oof_features for name, runner in self.clf_runners.items()])
+        for name, runner in itertools.chain(self.reg_runners.items(), self.clf_runners.items()):
+            oof_scores_list.append(runner.oof_features)
         return np.vstack(oof_scores_list).T
 
     @property
@@ -34,7 +51,6 @@ class RunnersStacking:
         if self.reg_runners is not None:
             oof_scores_list.extend([runner.oof_features for name, runner in self.reg_runners.items()])
         if self.clf_runners is not None:
-            # removed one columns to prevent linear depended columns
             oof_scores_list.extend([runner.oof_class_probas[:, :-1] for name, runner in self.clf_runners.items()])
         return np.column_stack(oof_scores_list)
 
@@ -66,15 +82,6 @@ class RunnersStacking:
         if self.clf_runners is not None:
             name = list(self.clf_runners.keys())[0]
             return self.clf_runners[name].oof_target
-
-    @property
-    def test_target(self) -> np.ndarray:
-        if self.reg_runners is not None:
-            name = list(self.reg_runners.keys())[0]
-            return self.reg_runners[name].test_target
-        if self.clf_runners is not None:
-            name = list(self.clf_runners.keys())[0]
-            return self.clf_runners[name].test_target
 
     def make_ridge_stacking(self):
         from sklearn.linear_model import Ridge
