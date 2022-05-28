@@ -19,6 +19,7 @@ def load_features(data_path: str, features_path: str, use_cache=False):
     data = feature_extractor.data
 
     if use_cache and features_path is not None and os.path.exists(features_path):
+        logger.info(f"Loading cached features from {features_path}")
         os.makedirs(os.path.dirname(features_path), exist_ok=True)
         merged_features = pd.read_pickle(features_path)
         return merged_features, data.y
@@ -48,6 +49,7 @@ def load_features(data_path: str, features_path: str, use_cache=False):
     merged_features = pd.concat((base_features, flatten_features, time_features), axis=1)
 
     if use_cache:
+        logger.info(f"cache features into {features_path}")
         merged_features.to_pickle(features_path)
     return merged_features, data.y
 
@@ -90,11 +92,11 @@ def main(data_path: str, features_path: Optional[str] = None):
     model_zoo = dev_utils.load_yaml("configs/models_zoo.yaml")["zoo"]
     use_regression_models = [
         "default_ridge",
-        "default_lasso",
-        "default_lgbm_v4",
+        # "default_lasso",
+        # "default_lgbm_v4",
         # "wild_lgbm",
-        "bayesian_ridge",
-        "default_fm",
+        # "bayesian_ridge",
+        # "default_fm",
     ]
     use_classification_models = [
         # "default_logreg"
@@ -102,8 +104,8 @@ def main(data_path: str, features_path: Optional[str] = None):
     clf_model_configs = {model_name: model_zoo[model_name] for model_name in use_classification_models}
     reg_model_configs = {model_name: model_zoo[model_name] for model_name in use_regression_models}
 
-    clf_runners = build_runners(time_folds, clf_model_configs, runners_dir="runners/5_folds_new", regression=False)
-    reg_runners = build_runners(time_folds, reg_model_configs, runners_dir="runners/5_folds_new", regression=True)
+    clf_runners = build_runners(time_folds, clf_model_configs, runners_dir="runners/5_folds_new_v2", regression=False)
+    reg_runners = build_runners(time_folds, reg_model_configs, runners_dir="runners/5_folds_new_v2", regression=True)
 
     runners_stacking = RunnersStacking(reg_runners, clf_runners)
     runners_stacking.make_oof_ensemble()
@@ -112,6 +114,7 @@ def main(data_path: str, features_path: Optional[str] = None):
 
 
 if __name__ == "__main__":
+    print("run")
     DATA_PATH = "data/data.pkl"
     features_path = "data/features.pkl"
     main(DATA_PATH, features_path)

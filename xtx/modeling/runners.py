@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import os
 import pickle
+import warnings
 from typing import Any
 
 import lightgbm as lgb
@@ -134,7 +135,9 @@ class CrossValRunner:
     def load(cls, runner_dir: str) -> CrossValRunner:
         print(f"Loading runner from {runner_dir}")
         runner_path = os.path.join(runner_dir, "runner.pkl")
-        return np.load(runner_path, allow_pickle=True)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=UserWarning())
+            return np.load(runner_path, allow_pickle=True)
 
     @classmethod
     def cache_exists(cls, runner_dir) -> bool:
