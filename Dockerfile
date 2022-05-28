@@ -9,7 +9,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # install fastFm
-RUN git clone --recursive https://github.com/ibayer/fastFM.git /workspace && \
+RUN git clone --recursive https://github.com/ibayer/fastFM.git /workspace/fastFM && \
     cd /workspace/fastFM && \
     pip install -r ./requirements.txt && \
     PYTHON=python3 make && \
