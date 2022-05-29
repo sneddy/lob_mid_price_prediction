@@ -1,4 +1,43 @@
-zoo:
+stacking_zoo:
+    stacking_ridge:
+        model_module: sklearn.linear_model
+        model_cls: Ridge
+        model_params:
+          alpha: 1
+          positive: True
+
+    stacking_lasso:
+        model_module: sklearn.linear_model
+        model_cls: Lasso
+        model_params:
+          alpha: 0.01
+          positive: True
+
+    stacking_elastic:
+        model_module: sklearn.linear_model
+        model_cls: ElasticNet
+        model_params:
+            alpha: 0.1
+            l1_ratio: 0.1
+            positive: True 
+    stacking_lgbm: 
+        model_module: lightgbm
+        model_cls: LGBMRegressor
+        model_params: 
+            n_jobs: -1
+            boosting_type: dart
+            colsample_bytree: 0.45
+            drop_rate: 0.6
+            learning_rate: 0.1
+            max_depth: 4
+            min_child_samples: 20000
+            min_child_weight: 0.035
+            n_estimators: 200
+            objective: regression
+            skip_drop: 0.8
+            subsample: 0.8
+            verbose: -1
+train_zoo:
     default_ridge:
         model_module: sklearn.linear_model
         model_cls: Ridge
@@ -18,16 +57,29 @@ zoo:
         model_cls: Lasso
         model_params: 
           alpha: 0.01
-    default_fm:
-        model_module: pyfm.pylibfm
-        model_cls: FM
-        model_params:
-            num_factors: 10
-            num_iter: 100
-            verbose: True
-            task: regression
-            initial_learning_rate: 0.001
-            learning_rate_schedule: optimal
+    default_sgd:
+        model_module: sklearn.linear_model
+        model_cls: SGDRegressor
+        model_params: 
+          alpha: 0.1
+    default_dart:
+        model_module: lightgbm
+        model_cls: LGBMRegressor
+        model_params: 
+            n_jobs: -1
+            boosting_type: dart
+            colsample_bytree: 0.45
+            drop_rate: 0.6
+            learning_rate: 0.02
+            max_depth: 4
+            min_child_samples: 20000
+            min_child_weight: 0.035
+            n_estimators: 1000
+            objective: regression
+            skip_drop: 0.8
+            subsample: 0.8
+            verbose: -1
+
     default_logreg:
         model_module: sklearn.linear_model
         model_cls: LogisticRegression
@@ -42,62 +94,26 @@ zoo:
         model_cls: LGBMRegressor
         model_params: 
             n_jobs: -1
-            num_leaves: 13
-            learning_rate: 0.01
-            n_estimators: 1000
-            reg_lambda: 1
+            num_leaves: 11
+            max_depth: 4
+            learning_rate: 0.02
+            n_estimators: 800
+            reg_lambda: 3.5
             colsample_bytree: 0.7
             subsample: 0.05
-            force_col_wise: True
-    default_lgbm_v2: 
-        model_module: lightgbm
-        model_cls: LGBMRegressor
-        model_params: 
-            n_jobs: -1
-            num_leaves: 13
-            learning_rate: 0.01
-            n_estimators: 1000
-            reg_lambda: 10
-            reg_alpha: 2
-            colsample_bytree: 0.5
-            subsample: 0.05
-            force_col_wise: True
-    default_lgbm_v3: 
-        model_module: lightgbm
-        model_cls: LGBMRegressor
-        model_params: 
-            n_jobs: -1
-            num_leaves: 9
-            learning_rate: 0.01
-            n_estimators: 1000
-            reg_lambda: 10
-            reg_alpha: 10
-            colsample_bytree: 0.5
-            subsample: 0.05
-            force_col_wise: True
-    default_lgbm_v4: 
-        model_module: lightgbm
-        model_cls: LGBMRegressor
-        model_params: 
-            n_jobs: -1
-            num_leaves: 9
-            learning_rate: 0.03
-            n_estimators: 500
-            reg_lambda: 10
-            reg_alpha: 10
-            colsample_bytree: 0.6
-            subsample: 0.25
+            min_child_samples: 10000
             force_col_wise: True
     wild_lgbm: 
         model_module: lightgbm
         model_cls: LGBMRegressor
         model_params: 
             n_jobs: -1
-            num_leaves: 13
-            learning_rate: 0.001
-            n_estimators: 2000
+            num_leaves: 255
+            learning_rate: 0.02
+            n_estimators: 1000
             reg_lambda: 10
             reg_alpha: 2
             colsample_bytree: 0.5
+            min_child_samples: 1000
             subsample: 0.05
             force_col_wise: True
