@@ -2,10 +2,7 @@ from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_squared_error
-
-from xtx.modeling.preprocessing import FoldPreprocessor
 
 
 def get_mse_and_corr_scores(gt, predicted, verbose=False, prefix=None):
@@ -20,8 +17,10 @@ def get_mse_and_corr_scores(gt, predicted, verbose=False, prefix=None):
 class CrossValReport:
     """Calculate and store relevant metrics and statistics"""
 
-    def __init__(self, n_folds: int):
+    def __init__(self, n_folds: int, test_eval: bool = True):
         self.n_folds = n_folds
+        self.test_eval = test_eval
+
         self.test_target: np.ndarray = None
         self.averaged_test_predicted: np.ndarray = None
         self.val_mse_scores: List[float] = []
@@ -58,11 +57,13 @@ class CrossValReport:
 
     @property
     def test_mse_mean(self) -> float:
-        return np.mean(self.test_mse_scores)
+        if self.test_eval:
+            return np.mean(self.test_mse_scores)
 
     @property
     def test_corr_mean(self) -> float:
-        return np.mean(self.test_corr_scores)
+        if self.test_eval:
+            return np.mean(self.test_corr_scores)
 
     @property
     def val_mse_conf(self) -> Tuple[float, float]:
@@ -76,62 +77,56 @@ class CrossValReport:
 
     @property
     def test_mse_conf(self) -> Tuple[float, float]:
-        sigma = np.std(self.test_mse_scores)
-        return self.test_mse_mean - 2 * sigma, self.test_mse_mean + 2 * sigma
+        if self.test_eval:
+            sigma = np.std(self.test_mse_scores)
+            return self.test_mse_mean - 2 * sigma, self.test_mse_mean + 2 * sigma
 
     @property
     def test_corr_conf(self) -> Tuple[float, float]:
-        sigma = np.std(self.test_corr_scores)
-        return self.test_corr_mean - 2 * sigma, self.test_corr_mean + 2 * sigma
+        if self.test_eval:
+            sigma = np.std(self.test_corr_scores)
+            return self.test_corr_mean - 2 * sigma, self.test_corr_mean + 2 * sigma
 
     @property
     def test_averaged_mse(self) -> float:
-        return mean_squared_error(self.test_target, self.averaged_test_predicted)
+        if self.test_eval:
+            return mean_squared_error(self.test_target, self.averaged_test_predicted)
 
     @property
     def test_averaged_corr(self) -> float:
-        return np.corrcoef(self.test_target, self.averaged_test_predicted)[0, 1]
+        if self.test_eval:
+            return np.corrcoef(self.test_target, self.averaged_test_predicted)[0, 1]
 
     @property
     def folds_report(self) -> pd.DataFrame:
-        df_dict = {
-            ("val", "mse"): self.val_mse_scores,
-            ("val", "corr"): self.val_corr_scores,
-            ("test", "mse"): self.test_mse_scores,
-            ("test", "corr"): self.test_corr_scores,
-        }
+        if self.test_eval:
+            df_dict = {
+                ("val", "mse"): self.val_mse_scores,
+                ("val", "corr"): self.val_corr_scores,
+                ("test", "mse"): self.test_mse_scores,
+                ("test", "corr"): self.test_corr_scores,
+            }
+        else:
+            df_dict = {("val_mse"): self.val_mse_scores, ("val_corr"): self.val_corr_scores}
         df = pd.DataFrame.from_dict(df_dict).T.reset_index()
-        df.columns = ["dataset", "metric_name"] + [f"fold_{idx}" for idx in range(self.n_folds)]
+        index_cols = ["dataset", "metric_name"] if self.test_eval else ["metric_name"]
+        df.columns = index_cols + [f"fold_{idx}" for idx in range(self.n_folds)]
         return df.round(3)
 
     def __repr__(self) -> str:
-        aggregated_repr = f"""
-        \t\tVal  corr averaged: {self.val_corr_mean:.3f}
-        \t\tVal   MSE averaged: {self.val_mse_mean:.3f}
-        \t\tTest corr averaged: {self.test_corr_mean:.3f}
-        \t\tTest  MSE averaged: {self.test_mse_mean:.3f}
-        ------------------------------------------------------------------
-        \t\tAveraged test  MSE: {self.test_averaged_mse:.3f}
-        \t\tAveraged test corr: {self.test_averaged_corr:.3f}
+        val_repr = f"""\n \
+            \tVal  corr score averaged: {self.val_corr_mean:.3f}
+            \tVal   MSE score averaged: {self.val_mse_mean:.3f}
         """
+        test_repr = """\n \
+            \tTest corr score averaged: {self.test_corr_mean:.3f}
+            \tTest  MSE score averaged: {self.test_mse_mean:.3f}
+            ------------------------------------------------------------------
+            \tTest  MSE predicts averaged: {self.test_averaged_mse:.3f}
+            \tTest corr predicts averaged: {self.test_averaged_corr:.3f}"""
+        aggregated_repr = val_repr + test_repr if self.test_eval else val_repr
         return self.folds_report.to_markdown() + aggregated_repr
 
     def save(self, report_path: str):
         with open(report_path, "w") as output_stream:
             output_stream.writelines(self.__repr__())
-
-
-def ridge_eval(time_folds, fold_id, ridge_alpha=100, verbose=True):
-    fold_processor = FoldPreprocessor(time_folds, fold_id)
-
-    model = Ridge(alpha=ridge_alpha)
-
-    model.fit(fold_processor.train_data, fold_processor.train_target)
-    predicted = model.predict(fold_processor.valid_data)
-    mse_score, corr_score = get_mse_and_corr_scores(fold_processor.valid_target, predicted, verbose, prefix="val")
-
-    test_predicted = model.predict(fold_processor.test_data)
-    test_mse_score, test_corr_score = get_mse_and_corr_scores(
-        fold_processor.test_target, test_predicted, verbose, prefix="test"
-    )
-    return mse_score, test_mse_score

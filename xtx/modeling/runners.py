@@ -4,7 +4,7 @@ import importlib
 import os
 import pickle
 import warnings
-from typing import Any
+from typing import Any, Dict, Optional
 
 import lightgbm as lgb
 import numpy as np
@@ -12,7 +12,7 @@ import pandas as pd
 from tqdm.auto import tqdm
 
 from xtx.modeling.evaluation import CrossValReport
-from xtx.modeling.preprocessing import FoldPreprocessor
+from xtx.modeling.preprocessing import DatasetPreprocessor
 from xtx.modeling.time_folds import TimeFolds
 
 
@@ -27,19 +27,21 @@ class CrossValRunner:
         time_folds: TimeFolds,
         model_module: str,
         model_cls: str,
-        model_params: dict[str, Any] | None = None,
+        model_params: Optional[Dict[str, Any]] = None,
+        test_eval: bool = True,
     ):
         # assert time_folds.neutral_ratio == 0, "Cant calculate oof on split with neutral"
         self.time_folds = time_folds
         self.model_module = model_module
         self.model_cls = model_cls
         self.model_params = {} if model_params is None else model_params
+        self.test_eval = test_eval and self.time_folds.test_ratio > 0
 
         self.oof = np.full(self.time_folds.train_size, np.nan)
         self.scores = []
         self.trained_models = []
-        self.scalers = []
-        self.report = CrossValReport(time_folds.n_folds)
+        self.preprocessor = DatasetPreprocessor(time_folds)
+        self.report = CrossValReport(time_folds.n_folds, test_eval=self.test_eval)
 
     def init_model(self):
         """Init model object"""
@@ -53,11 +55,17 @@ class CrossValRunner:
 
     def _fit(self, model, fold_processor):
         if model.__class__ == lgb.LGBMRegressor:
+            callbacks = [lgb.log_evaluation(100)]
+            # callbacks.append(lgb.early_stopping(50))
+            warnings.filterwarnings("ignore", category=UserWarning)
             model.fit(
                 fold_processor.train_data,
                 fold_processor.train_target,
-                eval_set=[(fold_processor.valid_data, fold_processor.valid_target)],
-                callbacks=[lgb.early_stopping(50), lgb.log_evaluation(100)],
+                eval_set=[
+                    (fold_processor.train_data, fold_processor.train_target),
+                    (fold_processor.valid_data, fold_processor.valid_target),
+                ],
+                callbacks=callbacks,
             )
         else:
             model.fit(fold_processor.train_data, fold_processor.train_target)
@@ -78,17 +86,23 @@ class CrossValRunner:
         progress_bar = tqdm(range(self.time_folds.n_folds), desc=self.model_cls)
         for fold_id in progress_bar:
             model = self.init_model()
-            fold_processor = FoldPreprocessor(self.time_folds, fold_id)
-            self.scalers.append(fold_processor.scaler)
+            fold_processor = self.preprocessor.prepare_fold(fold_id)
             self._fit(model, fold_processor)
             self._val_predict(model, fold_processor)
-            self._test_predict(model, fold_processor)
+            if self.test_eval:
+                self._test_predict(model, fold_processor)
 
-            progress_bar.set_description(
-                f"{self.model_cls}: \
-                Val_mse: {self.report.val_mse_mean:.3f}, \
-                val_corr: {self.report.val_corr_mean:.3f}"
-            )
+            if self.test_eval:
+                bar_description = f"{self.model_cls}: \
+                    val mse: {self.report.val_mse_mean:.3f}, \
+                    val corr: {self.report.val_corr_mean:.3f} \
+                    test mse: {self.report.test_mse_mean:.3f}, \
+                    test corr: {self.report.test_corr_mean:.3f}"
+            else:
+                bar_description = f"{self.model_cls}:  \
+                    val mse: {self.report.val_mse_mean:.3f}, \
+                    val corr: {self.report.val_corr_mean:.3f}"
+            progress_bar.set_description(bar_description)
         if verbose:
             print(self.report)
 
@@ -112,12 +126,16 @@ class CrossValRunner:
 
     def predict(self, unseen_features: pd.DataFrame):
         """Make ensemble prediction by some unseen features"""
+        processed_features, non_nan_idxs = self.preprocessor.transform(unseen_features)
         averaged_predictions = np.zeros(unseen_features.shape[0])
+
         for fold_id in range(self.time_folds.n_folds):
             model = self.trained_models[fold_id]
-            scaler = self.scalers[fold_id]
-            features = scaler.transform(unseen_features.fillna(0))
-            averaged_predictions += model.predict(features) / self.time_folds.n_folds
+            predicted = model.predict(processed_features[non_nan_idxs, :])
+            averaged_predictions[non_nan_idxs] = (
+                averaged_predictions[non_nan_idxs] + predicted
+            ) / self.time_folds.n_folds
+
         return averaged_predictions
 
     def save(self, runner_dir: str):
@@ -158,7 +176,7 @@ class CrossValClassificationRunner(CrossValRunner):
         super().__init__(time_folds, model_module, model_cls, model_params)
         self.n_classes = n_classes
         self.oof_probas = np.full((self.time_folds.train_size, self.n_classes), np.nan)
-        self.test_class_probas = np.zeros((self.time_folds.test_size_without_neutral, self.n_classes))
+        self.test_class_probas = np.zeros((self.time_folds.test_size, self.n_classes))
 
     def _fit(self, model, fold_processor):
         model.fit(fold_processor.train_data, np.sign(fold_processor.train_target))

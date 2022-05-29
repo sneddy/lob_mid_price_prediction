@@ -11,7 +11,7 @@ class TimeFolds:
         minifold_size=1000,
         neutral_ratio=0.2,
         test_ratio=0.2,
-        test_neutral_ratio=0.1,
+        train_test_gap=0,
     ):
         """
         Example with default parameters:
@@ -31,7 +31,7 @@ class TimeFolds:
         self.minifold_size = minifold_size
         self.neutral_ratio = neutral_ratio
         self.test_ratio = test_ratio
-        self.test_neutral_ratio = test_neutral_ratio
+        self.train_test_gap = train_test_gap
 
         self.skip_bot_thr = int(self.neutral_ratio * self.minifold_size)
         self.skip_top_thr = self.minifold_size - self.skip_bot_thr
@@ -59,28 +59,36 @@ class TimeFolds:
         self.df = df
         self.target = target
 
-        self.n = self.target.shape[0]
+        self.n: int = self.target.shape[0]
+        self.test_size: int = int(self.n * self.test_ratio)
+        self.train_size: int = self.n - self.train_test_gap - self.test_size
 
-        self.test_size = int(self.n * self.test_ratio)
-        self.train_size = self.n - self.test_size
-
-        self.minifolds = np.arange(self.n) // self.minifold_size
-        self.folds = np.arange(self.train_size) // self.minifold_size % self.n_folds
+        self.minifolds: np.ndarray = np.arange(self.train_size) // self.minifold_size
+        self.folds: np.ndarray = self.minifolds % self.n_folds
 
     @property
-    def whole_train(self):
+    def whole_train_data(self):
+        """data including train and validation in the same order"""
         return self.df.loc[: self.train_size, :]
 
+    @property
+    def whole_train_target(self):
+        """target including train and valid in the same order"""
+        return self.target[: self.train_size]
+
     def get_train_data(self, fold_id: int, include_minifolds=False):
-        selected_idx = np.where(self.folds != fold_id)[0]
+        selected_idx = self.get_train_idxs(fold_id)
         train_data = self.df.iloc[selected_idx, :].copy()
         if include_minifolds:
             train_data["minifold"] = self.minifolds[selected_idx]
         return train_data
 
     def get_train_target(self, fold_id: int):
-        selected_idx = np.where(self.folds != fold_id)[0]
+        selected_idx = self.get_train_idxs(fold_id)
         return self.target.iloc[selected_idx].copy()
+
+    def get_train_idxs(self, fold_id) -> np.ndarray:
+        return np.where(self.folds != fold_id)[0]
 
     def get_validation_idxs(self, fold_id) -> np.ndarray:
         selected_idx = np.where(self.folds == fold_id)[0]
@@ -99,19 +107,12 @@ class TimeFolds:
         selected_idx = self.get_validation_idxs(fold_id)
         return self.target.iloc[selected_idx].copy()
 
-    @property
-    def test_size_without_neutral(self):
-        return self.test_size - int(self.test_size * self.test_neutral_ratio)
-
-    def get_test_data(self, include_minifolds=False):
-        test_data = self.df.iloc[-self.test_size_without_neutral :, :].copy()
-
-        if include_minifolds:
-            test_data["minifold"] = self.minifolds[-self.test_size :]
+    def get_test_data(self):
+        test_data = self.df.iloc[-self.test_size :, :].copy()
         return test_data
 
     def get_test_target(self):
-        return self.target[-self.test_size_without_neutral :]
+        return self.target[-self.test_size :]
 
     def get_oof_features(self, usecols: List[str]):
         pass
