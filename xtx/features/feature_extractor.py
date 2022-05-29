@@ -1,11 +1,15 @@
-import os
 from typing import List, Optional
 
 import numpy as np
 import pandas as pd
-from tqdm.auto import tqdm
+import scipy.stats
 
+from pandarallel import pandarallel
+
+import xtx.features.flatten_tools as flatten_tools
 from xtx.utils.modeling_utils import shrink_dtype
+
+pandarallel.initialize(progress_bar=True)
 
 
 class FeatureExtractor:
@@ -37,6 +41,15 @@ class FeatureExtractor:
         cum_ask_size = self.data[self.ask_size_cols[:order]].sum(axis=1)
         return (cum_bid_size - cum_ask_size) / (cum_bid_size + cum_ask_size)
 
+    def rate_moda(self, is_ask: bool):
+        vals = self.data.values[:, :30] if is_ask else self.data.values[:, 30:60]
+        rate_idx = vals[:, 15:30].argmax(1)
+        return vals[np.arange(vals.shape[0]), rate_idx]
+
+    def get_fake_target(self, shift_size: int):
+        """Fake target. Can include nan values in first shift_size positions"""
+        return -(self.data["askRate0"] + self.data["bidRate0"]).diff(-shift_size)
+
     def get_base_features(self, usecols: Optional[List[str]] = None) -> pd.DataFrame:
         """Extract really reasonable features without any time dependensies
         Args:
@@ -64,6 +77,10 @@ class FeatureExtractor:
         base_features["volume_imbalance"] = self.calc_volume_imbalance(0)
         base_features["volume_imbalance_1"] = self.calc_volume_imbalance(1)
         base_features["volume_imbalance_2"] = self.calc_volume_imbalance(2)
+
+        # difference with most frequent count for ask and bid (to remove)
+        base_features["ask_rate_moda_spread"] = self.rate_moda(is_ask=True) - self.data.askRate0
+        base_features["bid_rate_moda_spread"] = self.data.bidRate0 - self.rate_moda(is_ask=False)
 
         # # how many ask size columns changed?
         ask_size_diff = self.data[self.ask_size_cols].diff(1)
@@ -145,21 +162,38 @@ class FeatureExtractor:
             return time_features
         return time_features[usecols]
 
-    def load_flatten_features(self, features_directory: str, useranks: List[int], usecols: Optional[List[str]] = None):
-        """Loads precalculated flatten features
-        Args:
-            features_directory (str): path to directory with calculated flatten features
-            useranks (List[int]): ranks to load
-            usecols (Optional, optional): Features to load. Defaults to None.
-        """
-        features_list = []
-        for n_per_row in tqdm(useranks):
-            data_fpath = os.path.join(features_directory, f"features_{n_per_row}.pkl")
-            current_features = pd.read_pickle(data_fpath)
-            shrink_dtype(current_features)
-            features_list.append(current_features)
-        topk_features = pd.concat(features_list, axis=1)
-        return topk_features[usecols]
+    def get_topk_features(self):
+        """Build small subset of topk features"""
+        features = pd.DataFrame()
+        ask_flatten_df_5 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=5), axis=1)
+        bid_flatten_df_5 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=5), axis=1)
+        ask_flatten_df_50 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=50), axis=1)
+        bid_flatten_df_50 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=50), axis=1)
+        features["bid_flatten_mean_5"] = bid_flatten_df_5.parallel_apply(np.mean)
+        features["ask_flatten_mean_5"] = ask_flatten_df_5.parallel_apply(np.mean)
+        features["bid_flatten_mean_50"] = bid_flatten_df_50.parallel_apply(np.mean)
+        features["ask_flatten_mean_50"] = ask_flatten_df_50.parallel_apply(np.mean)
+        features["ask_flatten_skew_50"] = ask_flatten_df_50.parallel_apply(scipy.stats.skew)
+        features["ask_flatten_iqr_50"] = ask_flatten_df_50.parallel_apply(scipy.stats.iqr)
+        features["bid_flatten_kurtosis_50"] = bid_flatten_df_50.parallel_apply(scipy.stats.kurtosis)
+        features["bid_flatten_std_50"] = bid_flatten_df_50.parallel_apply(np.std)
+        return features
+
+    # def load_flatten_features(self, features_directory: str, useranks: List[int], usecols: Optional[List[str]] = None):
+    #     """Loads precalculated flatten features
+    #     Args:
+    #         features_directory (str): path to directory with calculated flatten features
+    #         useranks (List[int]): ranks to load
+    #         usecols (Optional, optional): Features to load. Defaults to None.
+    #     """
+    #     features_list = []
+    #     for n_per_row in tqdm(useranks):
+    #         data_fpath = os.path.join(features_directory, f"features_{n_per_row}.pkl")
+    #         current_features = pd.read_pickle(data_fpath)
+    #         shrink_dtype(current_features)
+    #         features_list.append(current_features)
+    #     topk_features = pd.concat(features_list, axis=1)
+    #     return topk_features[usecols]
 
     def _read_data(self):
         extension = self.data_path.split(".")[-1]
@@ -169,4 +203,5 @@ class FeatureExtractor:
             data = pd.read_pickle(self.data_path)
         else:
             raise ValueError(f"Incorrect extension of {self.data_path}. Expected .csv or .pkl")
+        print(f"Loaded data from {self.data_path} with shape: {data.shape}")
         return data.fillna(0)
