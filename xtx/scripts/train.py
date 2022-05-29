@@ -62,6 +62,7 @@ def build_runners(
     regression: bool = True,
 ) -> Dict[str, CrossValRunner]:
     runners = {}
+
     for name, model_config in model_congigs.items():
         cached_runner_dir = os.path.join(runners_dir, name)
         if use_cache and CrossValRunner.cache_exists(cached_runner_dir):
@@ -80,6 +81,7 @@ def build_runners(
 
 def main(data_path: str, features_path: Optional[str] = None):
     merged_features, target = load_features(data_path, features_path, use_cache=True)
+
     time_folds = TimeFolds(
         n_folds=5,
         minifold_size=60000,
@@ -87,15 +89,18 @@ def main(data_path: str, features_path: Optional[str] = None):
         test_ratio=0.25,
         test_neutral_ratio=0.1,
     )
+
     time_folds.fit(merged_features, target)
 
     model_zoo = dev_utils.load_yaml("configs/models_zoo.yaml")["zoo"]
+
     use_regression_models = [
         "default_ridge",
-        # "default_lasso",
-        # "default_lgbm_v4",
+        "default_lasso",
+        "default_lgbm_v4",
+        "default_sgd",
         # "wild_lgbm",
-        # "bayesian_ridge",
+        "bayesian_ridge",
         # "default_fm",
     ]
     use_classification_models = [
@@ -104,8 +109,8 @@ def main(data_path: str, features_path: Optional[str] = None):
     clf_model_configs = {model_name: model_zoo[model_name] for model_name in use_classification_models}
     reg_model_configs = {model_name: model_zoo[model_name] for model_name in use_regression_models}
 
-    clf_runners = build_runners(time_folds, clf_model_configs, runners_dir="runners/5_folds_new_v2", regression=False)
-    reg_runners = build_runners(time_folds, reg_model_configs, runners_dir="runners/5_folds_new_v2", regression=True)
+    clf_runners = build_runners(time_folds, clf_model_configs, runners_dir="runners/5_folds", regression=False)
+    reg_runners = build_runners(time_folds, reg_model_configs, runners_dir="runners/5_folds", regression=True)
 
     runners_stacking = RunnersStacking(reg_runners, clf_runners)
     runners_stacking.make_oof_ensemble()

@@ -75,7 +75,7 @@ class CrossValRunner:
         self.report.update_test(fold_processor.test_target, test_predicted)
 
     def fit(self, verbose: bool = False):
-        progress_bar = tqdm(range(self.time_folds.n_folds))
+        progress_bar = tqdm(range(self.time_folds.n_folds), desc=self.model_cls)
         for fold_id in progress_bar:
             model = self.init_model()
             fold_processor = FoldPreprocessor(self.time_folds, fold_id)
@@ -85,8 +85,9 @@ class CrossValRunner:
             self._test_predict(model, fold_processor)
 
             progress_bar.set_description(
-                f"Val_mse: {self.report.val_mse_mean:.3f}, \
-                 val_corr: {self.report.val_corr_mean:.3f}"
+                f"{self.model_cls}: \
+                Val_mse: {self.report.val_mse_mean:.3f}, \
+                val_corr: {self.report.val_corr_mean:.3f}"
             )
         if verbose:
             print(self.report)
@@ -136,7 +137,7 @@ class CrossValRunner:
         print(f"Loading runner from {runner_dir}")
         runner_path = os.path.join(runner_dir, "runner.pkl")
         with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=UserWarning())
+            warnings.filterwarnings("ignore", category=UserWarning)
             return np.load(runner_path, allow_pickle=True)
 
     @classmethod

@@ -67,6 +67,10 @@ class TimeFolds:
         self.minifolds = np.arange(self.n) // self.minifold_size
         self.folds = np.arange(self.train_size) // self.minifold_size % self.n_folds
 
+    @property
+    def whole_train(self):
+        return self.df.loc[: self.train_size, :]
+
     def get_train_data(self, fold_id: int, include_minifolds=False):
         selected_idx = np.where(self.folds != fold_id)[0]
         train_data = self.df.iloc[selected_idx, :].copy()
