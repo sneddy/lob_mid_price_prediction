@@ -1,7 +1,9 @@
 import os
 from typing import Any, Dict, Optional
 
+import numpy as np
 import pandas as pd
+from contexttimer import Timer
 
 import xtx.utils.dev_utils as dev_utils
 from xtx.features.feature_extractor import FeatureExtractor
@@ -24,33 +26,27 @@ def load_features(data_path: str, features_path: str, fake_target: int = None, u
         merged_features = pd.read_pickle(features_path)
         # return merged_features, data.y
     else:
-        base_features = feature_extractor.get_base_features()
-        logger.info(f"Extracted base features for train: \n{base_features.columns.tolist()}")
+        with Timer() as base_features_time:
+            base_features = feature_extractor.get_base_features()
+        logger.info(f"Base features extraction time: {base_features_time.elapsed:.1f} sec")
+        logger.info(f"Extracted base features: \n{base_features.columns.tolist()}")
 
-        flatten_usecols = [
-            "bid_flatten_mean_5",
-            "wap_flatten_5",
-            # "ask_flatten_iqr_15",
-            "bid_flatten_mean_50",
-            "ask_flatten_skew_50",
-            "bid_flatten_kurtosis_50",
-            "ask_flatten_mean_50",
-            "ask_flatten_iqr_50",
-            # "ask_flatten_mean_100",
-            # "ask_flatten_iqr_100",
-        ]
-        flatten_useranks = sorted({int(col.split("_")[-1]) for col in flatten_usecols})
-        flatten_features = feature_extractor.load_flatten_features(
-            features_directory="artefacts", useranks=flatten_useranks, usecols=flatten_usecols
-        )
-        logger.info(f"Extracted flatten features for train: \n{flatten_features.columns.tolist()}")
+        with Timer() as topk_features_time:
+            topk_features = feature_extractor.get_topk_features()
+        logger.info(f"Topk features extraction time: {topk_features_time.elapsed:.1f} sec")
+        logger.info(f"Extracted topk features: \n{topk_features.columns.tolist()}")
 
-        time_features = feature_extractor.get_time_base_features(base_features)
-        merged_features = pd.concat((base_features, flatten_features, time_features), axis=1)
+        with Timer() as time_features_time:
+            time_features = feature_extractor.get_time_base_features(base_features)
+        logger.info(f"Topk features extraction time: {time_features_time.elapsed:.1f} sec")
+        logger.info(f"Extracted topk features: \n{time_features.columns.tolist()}")
+
+        merged_features = pd.concat((base_features, topk_features, time_features), axis=1)
 
         logger.info(f"cache features into {features_path}")
         merged_features.to_pickle(features_path)
-    target = data.y
+
+    target = data.y if "y" in data.columns else None
     if fake_target is not None:
         logger.info(f"Making fake target: mid_price_diff_{fake_target}")
         target = feature_extractor.get_fake_target(fake_target).iloc[fake_target:]
@@ -83,14 +79,14 @@ def build_runners(
     return runners
 
 
-def main(data_path: str, features_path: Optional[str] = None):
+def train(data_path: str, features_path: Optional[str] = None):
     merged_features, target = load_features(data_path, features_path, use_cache=True)
 
     time_folds = TimeFolds(
         n_folds=5,
         minifold_size=60000,
         neutral_ratio=0.05,
-        test_ratio=0.25,
+        test_ratio=0,
         train_test_gap=10000,
     )
 
@@ -114,23 +110,35 @@ def main(data_path: str, features_path: Optional[str] = None):
     clf_model_configs = {model_name: model_zoo[model_name] for model_name in use_classification_models}
     reg_model_configs = {model_name: model_zoo[model_name] for model_name in use_regression_models}
 
-    clf_runners = build_runners(
-        time_folds, clf_model_configs, runners_dir="runners/5_folds_new_feats", regression=False
-    )
-    reg_runners = build_runners(
-        time_folds, reg_model_configs, runners_dir="runners/5_folds_new_feats", regression=True
-    )
+    clf_runners = build_runners(time_folds, clf_model_configs, runners_dir="runners/5_folds_sim", regression=False)
+    reg_runners = build_runners(time_folds, reg_model_configs, runners_dir="runners/5_folds_sim", regression=True)
 
     runners_stacking = RunnersStacking(
-        reg_runners=reg_runners, clf_runners=clf_runners, **stacking_model_zoo["stacking_lgbm"]
+        # reg_runners=reg_runners, clf_runners=clf_runners, **stacking_model_zoo["stacking_elastic"]
+        reg_runners=reg_runners,
+        clf_runners=clf_runners,
+        test_eval=False,
+        **stacking_model_zoo["stacking_ridge"],
     )
     runners_stacking.make_oof_ensemble()
-    runners_stacking.make_test_ensemble()
+    # runners_stacking.make_test_ensemble()
     runners_stacking.fit_stacking()
+    return runners_stacking
+
+
+def test(data_path: str, runners_stacking: RunnersStacking, prediction_path: str, features_path: Optional[str] = None):
+    merged_features, _ = load_features(data_path, features_path, use_cache=True)
+    predicted = runners_stacking.predict_by_ensemble(merged_features)
+    np.save(prediction_path, predicted)
+    return predicted
 
 
 if __name__ == "__main__":
-    print("run")
-    DATA_PATH = "data/data.pkl"
-    features_path = "data/features.pkl"
-    main(DATA_PATH, features_path)
+    DATA_PATH = "data/simulation/train.csv"
+    features_path = "data/simulation_features.pkl"
+    runners_stacking = train(DATA_PATH, features_path)
+
+    prediction_path = "predictions/debug_ensemble"
+    test_data_path = "data/simulation/test.csv"
+    test_features_path = "data/simulation_test_features.pkl"
+    test(test_data_path, runners_stacking, prediction_path, test_features_path)
