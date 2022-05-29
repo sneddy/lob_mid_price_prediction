@@ -4,7 +4,7 @@ import importlib
 import os
 import pickle
 import warnings
-from typing import Any, Dict, Optional
+from typing import Any
 
 import lightgbm as lgb
 import numpy as np
@@ -27,7 +27,7 @@ class CrossValRunner:
         time_folds: TimeFolds,
         model_module: str,
         model_cls: str,
-        model_params: Optional[Dict[str, Any]] = None,
+        model_params: dict[str, Any] | None = None,
         test_eval: bool = True,
     ):
         # assert time_folds.neutral_ratio == 0, "Cant calculate oof on split with neutral"

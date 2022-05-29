@@ -19,11 +19,11 @@ stacking_zoo:
         model_params:
             alpha: 0.1
             l1_ratio: 0.1
-            positive: True 
-    stacking_lgbm: 
+            positive: True
+    stacking_lgbm:
         model_module: lightgbm
         model_cls: LGBMRegressor
-        model_params: 
+        model_params:
             n_jobs: -1
             boosting_type: dart
             colsample_bytree: 0.45
@@ -47,25 +47,25 @@ train_zoo:
         model_module: sklearn.linear_model
         model_cls: BayesianRidge
         model_params:
-    wild_ridge: 
+    wild_ridge:
         model_module: sklearn.linear_model
         model_cls: Ridge
-        model_params: 
+        model_params:
           alpha: 10
-    default_lasso: 
+    default_lasso:
         model_module: sklearn.linear_model
         model_cls: Lasso
-        model_params: 
+        model_params:
           alpha: 0.01
     default_sgd:
         model_module: sklearn.linear_model
         model_cls: SGDRegressor
-        model_params: 
+        model_params:
           alpha: 0.1
     default_dart:
         model_module: lightgbm
         model_cls: LGBMRegressor
-        model_params: 
+        model_params:
             n_jobs: -1
             boosting_type: dart
             colsample_bytree: 0.45
@@ -83,16 +83,16 @@ train_zoo:
     default_logreg:
         model_module: sklearn.linear_model
         model_cls: LogisticRegression
-        model_params: 
+        model_params:
             C: 1
-            n_jobs: -1 
+            n_jobs: -1
             solver: saga
             tol: 0.01
             # penalty: elasticnet
-    default_lgbm: 
+    default_lgbm:
         model_module: lightgbm
         model_cls: LGBMRegressor
-        model_params: 
+        model_params:
             n_jobs: -1
             num_leaves: 11
             max_depth: 4
@@ -103,10 +103,10 @@ train_zoo:
             subsample: 0.05
             min_child_samples: 10000
             force_col_wise: True
-    wild_lgbm: 
+    wild_lgbm:
         model_module: lightgbm
         model_cls: LGBMRegressor
-        model_params: 
+        model_params:
             n_jobs: -1
             num_leaves: 255
             learning_rate: 0.02

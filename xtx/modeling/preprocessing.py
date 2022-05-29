@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional, Tuple
-
 import numpy as np
 import pandas as pd
 import sklearn.preprocessing
@@ -14,7 +12,7 @@ class DatasetPreprocessor:
     def __init__(
         self,
         time_folds: TimeFolds(),
-        pca_components: Optional[int] = None,
+        pca_components: int | None = None,
     ):
         self.time_folds = time_folds
         self.pca_components = pca_components
@@ -30,7 +28,7 @@ class DatasetPreprocessor:
         pca = self.pca if self.pca_components is not None else None
         return FoldPreprocessor(self.time_folds, fold_id, self.scaler, pca)
 
-    def transform(self, data: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
+    def transform(self, data: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
         """Preprocessing of unseen data
         Args:
             data (pd.DataFrame): features to preprocess
@@ -60,7 +58,7 @@ class FoldPreprocessor:
         time_folds: TimeFolds,
         fold_id: int,
         scaler,
-        pca: Optional[PCA] = None,
+        pca: PCA | None = None,
     ):
         self.time_folds = time_folds
         self.fold_id = fold_id

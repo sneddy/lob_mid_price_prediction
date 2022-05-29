@@ -3,7 +3,6 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 import scipy.stats
-
 from pandarallel import pandarallel
 
 import xtx.features.flatten_tools as flatten_tools
@@ -178,22 +177,6 @@ class FeatureExtractor:
         features["bid_flatten_kurtosis_50"] = bid_flatten_df_50.parallel_apply(scipy.stats.kurtosis)
         features["bid_flatten_std_50"] = bid_flatten_df_50.parallel_apply(np.std)
         return features
-
-    # def load_flatten_features(self, features_directory: str, useranks: List[int], usecols: Optional[List[str]] = None):
-    #     """Loads precalculated flatten features
-    #     Args:
-    #         features_directory (str): path to directory with calculated flatten features
-    #         useranks (List[int]): ranks to load
-    #         usecols (Optional, optional): Features to load. Defaults to None.
-    #     """
-    #     features_list = []
-    #     for n_per_row in tqdm(useranks):
-    #         data_fpath = os.path.join(features_directory, f"features_{n_per_row}.pkl")
-    #         current_features = pd.read_pickle(data_fpath)
-    #         shrink_dtype(current_features)
-    #         features_list.append(current_features)
-    #     topk_features = pd.concat(features_list, axis=1)
-    #     return topk_features[usecols]
 
     def _read_data(self):
         extension = self.data_path.split(".")[-1]
