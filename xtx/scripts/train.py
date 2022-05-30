@@ -1,11 +1,13 @@
+import argparse
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
+import numpy as np
 import pandas as pd
 
 import xtx.utils.dev_utils as dev_utils
-from xtx.features.feature_extractor import FeatureExtractor
-from xtx.modeling.runners import CrossValClassificationRunner, CrossValRunner
+import xtx.utils.modeling_utils as modeling_utils
+from xtx.factory import build_runners, load_features
 from xtx.modeling.stacking import RunnersStacking
 from xtx.modeling.time_folds import TimeFolds
 
@@ -14,123 +16,87 @@ pd.set_option("display.max_columns", 100)
 logger = dev_utils.init_logger("logging/train.log")
 
 
-def load_features(data_path: str, features_path: str, fake_target: int = None, use_cache=False):
-    feature_extractor = FeatureExtractor(data_path)
-    data = feature_extractor.data
+def argparser():
+    parser = argparse.ArgumentParser(description="Xtx pipeline")
+    parser.add_argument("train_cfg", type=str, help="train config path")
+    return parser.parse_args()
 
-    if use_cache and features_path is not None and os.path.exists(features_path):
-        logger.info(f"Loading cached features from {features_path}")
-        os.makedirs(os.path.dirname(features_path), exist_ok=True)
-        merged_features = pd.read_pickle(features_path)
-        # return merged_features, data.y
-    else:
-        base_features = feature_extractor.get_base_features()
-        logger.info(f"Extracted base features for train: \n{base_features.columns.tolist()}")
 
-        flatten_usecols = [
-            "bid_flatten_mean_5",
-            "wap_flatten_5",
-            # "ask_flatten_iqr_15",
-            "bid_flatten_mean_50",
-            "ask_flatten_skew_50",
-            "bid_flatten_kurtosis_50",
-            "ask_flatten_mean_50",
-            "ask_flatten_iqr_50",
-            # "ask_flatten_mean_100",
-            # "ask_flatten_iqr_100",
-        ]
-        flatten_useranks = sorted({int(col.split("_")[-1]) for col in flatten_usecols})
-        flatten_features = feature_extractor.load_flatten_features(
-            features_directory="artefacts", useranks=flatten_useranks, usecols=flatten_usecols
+def train(experiment: Dict[str, Any]):
+    clf_runners = {}
+    reg_runners = {}
+    pseudo_target_list = [None] + experiment.get("pseudo_target", [])
+    for pseudo_target in pseudo_target_list:
+        logger.info(f"Building runners for pseudo_target: {pseudo_target}")
+        merged_features, target = load_features(
+            data_path=experiment["train_data_path"],
+            features_path=experiment["cached_features"],
+            use_cache=True,
+            pseudo_target=None,
         )
-        logger.info(f"Extracted flatten features for train: \n{flatten_features.columns.tolist()}")
 
-        time_features = feature_extractor.get_time_base_features(base_features)
-        merged_features = pd.concat((base_features, flatten_features, time_features), axis=1)
+        time_folds = TimeFolds(pseudo_target_shift=pseudo_target, **experiment["TimeFolds"])
+        test_eval = time_folds.test_ratio > 0
+        time_folds.fit(merged_features, target)
 
-        logger.info(f"cache features into {features_path}")
-        merged_features.to_pickle(features_path)
-    target = data.y
-    if fake_target is not None:
-        logger.info(f"Making fake target: mid_price_diff_{fake_target}")
-        target = feature_extractor.get_fake_target(fake_target).iloc[fake_target:]
-        merged_features = merged_features.iloc[fake_target:, :]
-    return merged_features, target
+        model_zoo = dev_utils.load_yaml(experiment["model_zoo"])
+        use_regression_models = experiment.get("use_regression_models", [])
+        use_classification_models = experiment.get("use_classification_models", [])
+        clf_model_configs = {
+            model_name: model_zoo["train_zoo"][model_name] for model_name in use_classification_models
+        }
+        reg_model_configs = {model_name: model_zoo["train_zoo"][model_name] for model_name in use_regression_models}
 
-
-def build_runners(
-    time_folds,
-    model_congigs: Dict[str, Dict[str, Any]],
-    runners_dir: str,
-    use_cache: bool = True,
-    regression: bool = True,
-) -> Dict[str, CrossValRunner]:
-    runners = {}
-
-    for name, model_config in model_congigs.items():
-        cached_runner_dir = os.path.join(runners_dir, name)
-        if use_cache and CrossValRunner.cache_exists(cached_runner_dir):
-            runners[name] = CrossValRunner.load(cached_runner_dir)
-            logger.info(runners[name].report)
-        else:
-            if regression:
-                current_runner = CrossValRunner(time_folds, **model_config)
-            else:
-                current_runner = CrossValClassificationRunner(n_classes=3, time_folds=time_folds, **model_config)
-            current_runner.fit(verbose=True)
-            runners[name] = current_runner
-            current_runner.save(cached_runner_dir)
-    return runners
-
-
-def main(data_path: str, features_path: Optional[str] = None):
-    merged_features, target = load_features(data_path, features_path, use_cache=True)
-
-    time_folds = TimeFolds(
-        n_folds=5,
-        minifold_size=60000,
-        neutral_ratio=0.05,
-        test_ratio=0.25,
-        train_test_gap=10000,
-    )
-
-    time_folds.fit(merged_features, target)
-
-    model_zoo = dev_utils.load_yaml("configs/models_zoo.yaml")["train_zoo"]
-    stacking_model_zoo = dev_utils.load_yaml("configs/models_zoo.yaml")["stacking_zoo"]
-
-    use_regression_models = [
-        "default_ridge",
-        "default_dart",
-        "default_lasso",
-        # "default_lgbm",
-        # "default_sgd",
-        # "wild_lgbm",
-        # "bayesian_ridge",
-    ]
-    use_classification_models = [
-        # "default_logreg"
-    ]
-    clf_model_configs = {model_name: model_zoo[model_name] for model_name in use_classification_models}
-    reg_model_configs = {model_name: model_zoo[model_name] for model_name in use_regression_models}
-
-    clf_runners = build_runners(
-        time_folds, clf_model_configs, runners_dir="runners/5_folds_new_feats", regression=False
-    )
-    reg_runners = build_runners(
-        time_folds, reg_model_configs, runners_dir="runners/5_folds_new_feats", regression=True
-    )
+        runners_dir = experiment["runners_dir"]
+        current_clf_runners = build_runners(
+            time_folds, clf_model_configs, runners_dir=runners_dir, regression=False, pseudo_target=pseudo_target
+        )
+        current_reg_runners = build_runners(
+            time_folds, reg_model_configs, runners_dir=runners_dir, regression=True, pseudo_target=pseudo_target
+        )
+        clf_runners.update(current_clf_runners)
+        reg_runners.update(current_reg_runners)
 
     runners_stacking = RunnersStacking(
-        reg_runners=reg_runners, clf_runners=clf_runners, **stacking_model_zoo["stacking_lgbm"]
+        reg_runners=reg_runners,
+        clf_runners=clf_runners,
+        test_eval=test_eval,
+        **model_zoo["stacking_zoo"][experiment["stacking_model"]],
     )
     runners_stacking.make_oof_ensemble()
-    runners_stacking.make_test_ensemble()
+    if test_eval > 0:
+        runners_stacking.make_test_ensemble()
     runners_stacking.fit_stacking()
+    return runners_stacking
+
+
+def test(experiment: Dict[str, Any], runners_stacking: RunnersStacking):
+    merged_features, _ = load_features(
+        data_path=experiment["test_data_path"], features_path=experiment["cached_test_features"], use_cache=True
+    )
+    predicted_by_ensemble = runners_stacking.predict_by_ensemble(merged_features)
+    predicted_by_stacking = runners_stacking.predict_by_stacking(merged_features)
+
+    predictions_dir = experiment["predictions_dir"]
+    os.makedirs(predictions_dir, exist_ok=True)
+    ensemble_predictions_fpath = os.path.join(predictions_dir, "ensemble")
+    logger.info(f"Saving ensemble prediction to {ensemble_predictions_fpath}.npy")
+    np.save(ensemble_predictions_fpath, predicted_by_ensemble)
+
+    stacking_predictions_fpath = os.path.join(predictions_dir, "stacking")
+    logger.info(f"Saving stacking prediction to {stacking_predictions_fpath}.npy")
+    np.save(stacking_predictions_fpath, predicted_by_stacking)
+    return predicted_by_ensemble
 
 
 if __name__ == "__main__":
-    print("run")
-    DATA_PATH = "data/data.pkl"
-    features_path = "data/features.pkl"
-    main(DATA_PATH, features_path)
+    args = argparser()
+    experiment_config_path = args.train_cfg.strip("/")
+
+    experiment: Dict[str, Any] = dev_utils.load_yaml(experiment_config_path)
+    modeling_utils.set_all_seeds(experiment["random_seed"])
+    logger.info(f"Experiment parameters:\n{experiment}")
+
+    runners_stacking = train(experiment)
+    if experiment.get("test_data_path", None) is not None:
+        test(experiment, runners_stacking)

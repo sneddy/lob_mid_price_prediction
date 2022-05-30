@@ -118,7 +118,7 @@ class CrossValReport:
             \tVal  corr score averaged: {self.val_corr_mean:.3f}
             \tVal   MSE score averaged: {self.val_mse_mean:.3f}
         """
-        test_repr = """\n \
+        test_repr = f"""\n \
             \tTest corr score averaged: {self.test_corr_mean:.3f}
             \tTest  MSE score averaged: {self.test_mse_mean:.3f}
             ------------------------------------------------------------------

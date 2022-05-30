@@ -1,0 +1,36 @@
+train_data_path: <please insert actual fpath>
+test_data_path: <please insert actual fpath>
+
+cached_features: data/simulation_features.pkl
+cached_test_features: data/simulation_test_features.pkl
+
+predictions_dir: predictions/production
+runners_dir: runners/productions
+model_zoo: configs/models_zoo.yaml
+
+use_regression_models:  
+  - default_ridge
+  - default_dart
+  - default_lgbm
+  # - fast_dart
+  - default_lasso
+  - default_mlp
+  - default_mlp_2
+
+use_classification_models: []
+  # - default_logreg
+
+stacking_model: stacking_ridge
+
+TimeFolds:
+  n_folds: 5
+  minifold_size: 60000
+  neutral_ratio: 0.05
+  test_ratio: 0
+  train_test_gap: 10000
+    
+random_seed: 42
+pseudo_target: 
+  - 40
+  - 60
+  - 75

@@ -1,5 +1,6 @@
 import importlib
 import itertools
+from functools import cached_property
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -34,6 +35,17 @@ class RunnersStacking:
         self.check_consistency()
         self.stacking_model = self.init_model()
 
+    @property
+    def runner_names(self):
+        return sorted(list(self.reg_runners) + list(self.clf_runners))
+
+    @cached_property
+    def name2runner(self) -> Dict[str, CrossValRunner]:
+        mapping = {}
+        for name, runner in itertools.chain(self.reg_runners.items(), self.clf_runners.items()):
+            mapping[name] = runner
+        return mapping
+
     def init_model(self):
         """Init model object"""
         module = importlib.import_module(self.model_module)
@@ -41,6 +53,9 @@ class RunnersStacking:
         return model_cls(**self.model_params)
 
     def _check_runner_consistensy(self, runner):
+        assert len(self.reg_runners) + len(self.clf_runners) == len(self.runner_names), ValueError(
+            "Model names conflict"
+        )
         if self.runner_columns is None:
             self.runner_columns = runner.columns
         else:
@@ -125,9 +140,9 @@ class RunnersStacking:
         predictions = []
         for name, runner in itertools.chain(self.reg_runners.items(), self.clf_runners.items()):
             predictions.append(runner.predict(unseen_features))
-        predictions = np.array(predictions)
+        predictions = np.array(predictions).T
         if weights is None:
-            ensemble_prediction = predictions.mean(0)
+            ensemble_prediction = predictions.mean(1)
         else:
             ensemble_prediction = np.dot(predictions, weights) / np.sum(weights)
         return ensemble_prediction
@@ -135,6 +150,15 @@ class RunnersStacking:
     def predict_by_stacking(self, unseen_features: pd.DataFrame):
         stacking_features = []
         for name, runner in itertools.chain(self.reg_runners.items(), self.clf_runners.items()):
-            stacking_features.append(runner.predict(unseen_features))
-        stacking_features = np.array(stacking_features)
+            if name in self.reg_runners:
+                predictions = runner.predict(unseen_features).reshape(-1, 1)
+                print(name, predictions.shape)
+                stacking_features.append(predictions)
+            else:
+                # removed one columns to prevent linear depended columns
+                predictions = runner.predict_proba(unseen_features)[:, :-1]
+                print(name, predictions.shape)
+                stacking_features.append(predictions)
+        stacking_features = np.hstack(stacking_features)
+
         return self.stacking_model.predict(stacking_features)

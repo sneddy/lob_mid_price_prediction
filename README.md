@@ -1,12 +1,13 @@
 # xtx
 - Put train.csv and test.csv to directory data
-- Prepare flatten features (can take long time, please let me know if it's a problem)
+- Add correct values for paths for train and test in configs/experiment_prod.yaml
+- install requirements:
 ```bash
-python -m xtx.scripts.extract_flatten_features
+pip install -r requirements.txt
 ```
-- Run
+- run training pipeline
 ```bash
-python -m xtx.scripts.train
+python -m xtx.scripts.train configs/experiment_prod.yaml
 ```
 ## Description
 
@@ -31,10 +32,19 @@ You'll have writing access to it so that once you have finished, you can upload 
 As for benchmark scores, on test dataset 0.17 correlation is very good, while 0.15 correlation is mediocre (can be achieved with reasonable linear model). (used correlation here just for optics, objective function is MSE)
 
 ## Solution Overview
-- extract features:
-    - common sense features
-    - topk row aggregations from flatten features:
-    Example: askRate0 = 1000, askRate1 = 1001, askSize0= 1, askSize1: 2
-    askFlattenFeatures = [1000, 1001, 1001]
-    - time features: different time aggregations of common sense features with small period
-- 5Fold and 10Fold cross-validation with minibatches
+- You can check notebooks/demo.ipynb
+
+## Metrics
+Some kind of Kaggle Style improvement can be easily done by running more experiments and adding them to stacking:
+- feature subsets of extended feature pack
+- different time folds
+- different lgbm parameters
+
+I was limited by time (I promise to submit week ago) and machine (currently all experiments was conducted on single mac pro)
+
+Some kind of impovements can be done by adding neural network based solutions. I invest some time to run public solutions and custom one but it wasn't succesfull.
+- https://github.com/zcakhaa/DeepLOB-Deep-Convolutional-Neural-Networks-for-Limit-Order-Books/blob/master/jupyter_pytorch/run_train_pytorch.ipynb
+
+
+## Machine
+- All calculations was performed on single macbook pro

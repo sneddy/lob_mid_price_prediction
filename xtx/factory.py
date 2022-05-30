@@ -16,12 +16,15 @@ def build_runners(
     model_congigs: Dict[str, Dict[str, Any]],
     runners_dir: str,
     use_cache: bool = True,
+    pseudo_target: int = None,
     regression: bool = True,
 ) -> Dict[str, CrossValRunner]:
     runners = {}
-
+    name_suffix = "" if pseudo_target is None else f"_pseudo_{pseudo_target}"
     for name, model_config in model_congigs.items():
+        name = name + name_suffix
         cached_runner_dir = os.path.join(runners_dir, name)
+
         if use_cache and CrossValRunner.cache_exists(cached_runner_dir):
             runners[name] = CrossValRunner.load(cached_runner_dir)
             logger.info(runners[name].report)
@@ -36,7 +39,7 @@ def build_runners(
     return runners
 
 
-def load_features(data_path: str, features_path: str, fake_target: int = None, use_cache=False):
+def load_features(data_path: str, features_path: str, pseudo_target: int = None, use_cache=False):
     feature_extractor = FeatureExtractor(data_path)
     data = feature_extractor.data
 
@@ -44,7 +47,6 @@ def load_features(data_path: str, features_path: str, fake_target: int = None, u
         logger.info(f"Loading cached features from {features_path}")
         os.makedirs(os.path.dirname(features_path), exist_ok=True)
         merged_features = pd.read_pickle(features_path)
-        # return merged_features, data.y
     else:
         with Timer() as base_features_time:
             base_features = feature_extractor.get_base_features()
@@ -58,7 +60,7 @@ def load_features(data_path: str, features_path: str, fake_target: int = None, u
 
         with Timer() as time_features_time:
             time_features = feature_extractor.get_time_base_features(base_features)
-        logger.info(f"Topk features extraction time: {time_features_time.elapsed:.1f} sec")
+        logger.info(f"Time features extraction time: {time_features_time.elapsed:.1f} sec")
         logger.info(f"Extracted topk features: \n{time_features.columns.tolist()}")
 
         merged_features = pd.concat((base_features, topk_features, time_features), axis=1)
@@ -67,8 +69,8 @@ def load_features(data_path: str, features_path: str, fake_target: int = None, u
         merged_features.to_pickle(features_path)
 
     target = data.y if "y" in data.columns else None
-    if fake_target is not None:
-        logger.info(f"Making fake target: mid_price_diff_{fake_target}")
-        target = feature_extractor.get_fake_target(fake_target).iloc[fake_target:]
-        merged_features = merged_features.iloc[fake_target:, :]
+    if pseudo_target is not None:
+        logger.info(f"Making fake target: mid_price_diff_{pseudo_target}")
+        target = feature_extractor.get_fake_target(pseudo_target).iloc[:-pseudo_target]
+        merged_features = merged_features.iloc[:-pseudo_target, :]
     return merged_features, target

@@ -1,3 +1,5 @@
+import os
+import random
 import warnings
 from typing import List
 
@@ -58,3 +60,9 @@ def draw_moment_book(row: pd.Series, radius: int = 15, horizontal_view=True) -> 
         book_df_style = book_df_style.T
 
     display.display(book_df_style)
+
+
+def set_all_seeds(seed=42):
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    np.random.seed(seed)

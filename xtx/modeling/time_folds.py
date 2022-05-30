@@ -12,6 +12,7 @@ class TimeFolds:
         neutral_ratio=0.2,
         test_ratio=0.2,
         train_test_gap=0,
+        pseudo_target_shift=None,
     ):
         """
         Example with default parameters:
@@ -32,6 +33,7 @@ class TimeFolds:
         self.neutral_ratio = neutral_ratio
         self.test_ratio = test_ratio
         self.train_test_gap = train_test_gap
+        self.pseudo_target_shift = pseudo_target_shift
 
         self.skip_bot_thr = int(self.neutral_ratio * self.minifold_size)
         self.skip_top_thr = self.minifold_size - self.skip_bot_thr
@@ -71,11 +73,6 @@ class TimeFolds:
         """data including train and validation in the same order"""
         return self.df.loc[: self.train_size, :]
 
-    @property
-    def whole_train_target(self):
-        """target including train and valid in the same order"""
-        return self.target[: self.train_size]
-
     def get_train_data(self, fold_id: int, include_minifolds=False):
         selected_idx = self.get_train_idxs(fold_id)
         train_data = self.df.iloc[selected_idx, :].copy()
@@ -83,8 +80,14 @@ class TimeFolds:
             train_data["minifold"] = self.minifolds[selected_idx]
         return train_data
 
+    @property
+    def whole_pseudo_target(self):
+        return -self.df["mid_price"].diff(-self.pseudo_target_shift)
+
     def get_train_target(self, fold_id: int):
         selected_idx = self.get_train_idxs(fold_id)
+        if self.pseudo_target_shift is not None:
+            return self.whole_pseudo_target.iloc[selected_idx].copy()
         return self.target.iloc[selected_idx].copy()
 
     def get_train_idxs(self, fold_id) -> np.ndarray:

@@ -47,21 +47,37 @@ train_zoo:
         model_module: sklearn.linear_model
         model_cls: BayesianRidge
         model_params:
-    wild_ridge:
-        model_module: sklearn.linear_model
-        model_cls: Ridge
-        model_params:
-          alpha: 10
     default_lasso:
         model_module: sklearn.linear_model
         model_cls: Lasso
         model_params:
           alpha: 0.01
-    default_sgd:
-        model_module: sklearn.linear_model
-        model_cls: SGDRegressor
+    default_mlp:
+        model_module: sklearn.neural_network
+        model_cls: MLPRegressor
         model_params:
-          alpha: 0.1
+          alpha: 1.
+          hidden_layer_sizes: [40, ]
+          learning_rate_init: 0.01
+          learning_rate: adaptive
+          solver: sgd
+          tol: 0.0001
+          max_iter: 1
+          verbose: True 
+    default_mlp_2:
+        model_module: sklearn.neural_network
+        model_cls: MLPRegressor
+        model_params:
+          alpha: 100.
+          hidden_layer_sizes: [10]
+          learning_rate_init: 0.01
+          learning_rate: adaptive
+          solver: adam
+          batch_size: 30000
+          tol: 0.0001
+          max_iter: 15
+          verbose: True 
+        
     default_dart:
         model_module: lightgbm
         model_cls: LGBMRegressor
@@ -79,7 +95,23 @@ train_zoo:
             skip_drop: 0.8
             subsample: 0.8
             verbose: -1
-
+    fast_dart:
+        model_module: lightgbm
+        model_cls: LGBMRegressor
+        model_params:
+            n_jobs: -1
+            boosting_type: dart
+            colsample_bytree: 0.45
+            drop_rate: 0.6
+            learning_rate: 0.05
+            max_depth: 4
+            min_child_samples: 20000
+            min_child_weight: 0.035
+            n_estimators: 400
+            objective: regression
+            skip_drop: 0.8
+            subsample: 0.8
+            verbose: -1
     default_logreg:
         model_module: sklearn.linear_model
         model_cls: LogisticRegression
@@ -95,22 +127,36 @@ train_zoo:
         model_params:
             n_jobs: -1
             num_leaves: 11
-            max_depth: 4
+            max_depth: 5
             learning_rate: 0.02
-            n_estimators: 800
+            n_estimators: 1000
             reg_lambda: 3.5
-            colsample_bytree: 0.7
-            subsample: 0.05
+            colsample_bytree: 0.2
+            subsample: 0.15
             min_child_samples: 10000
             force_col_wise: True
+    # another_lgbm:
+    #     model_module: lightgbm
+    #     model_cls: LGBMRegressor
+    #     model_params:
+    #         n_jobs: -1
+    #         num_leaves: 13
+    #         max_depth: 5
+    #         learning_rate: 0.01
+    #         n_estimators: 1000
+    #         reg_lambda: 3.5
+    #         colsample_bytree: 0.7
+    #         subsample: 0.15
+    #         min_child_samples: 10000
+    #         force_col_wise: True
     wild_lgbm:
         model_module: lightgbm
         model_cls: LGBMRegressor
         model_params:
             n_jobs: -1
             num_leaves: 255
-            learning_rate: 0.02
-            n_estimators: 1000
+            learning_rate: 0.01
+            n_estimators: 600
             reg_lambda: 10
             reg_alpha: 2
             colsample_bytree: 0.5

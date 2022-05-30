@@ -59,7 +59,8 @@ class FeatureExtractor:
         """
         base_features = pd.DataFrame()
         base_features["ask_rate_0"] = self.ask_rate[0]
-        # base_features['bid_rate_0'] = bid_rate[0]
+        # base_features["spread"] = self.ask_rate[0] - self.bid_rate[0]
+        # base_features['bid_rate_0'] = self.bid_rate[0]
         base_features["mid_price"] = (self.ask_rate[0] + self.bid_rate[0]) / 2
         base_features["mid_price_log"] = base_features["mid_price"].apply(np.log1p)
 
@@ -137,14 +138,17 @@ class FeatureExtractor:
             # time_features[f'mid_price_log_std_{window}'] = \
             # base_features[f'mid_price_log'].diff(window).rolling(window).std()
 
+            # time_features[f"spread_rolling_mean_{window}"] = base_features["spread"].rolling(window).mean()
+            # time_features[f"spread_rolling_std_{window}"] = base_features["spread"].rolling(window).std()
+
         for window in (10, 20, 40, 80):
             time_features[f"wap0_{window}_mean"] = base_features["wap0"].rolling(window).mean()
             time_features[f"wap0_{window}_std"] = base_features["wap0"].rolling(window).std()  # overfit?
             time_features[f"wap0_{window}_max"] = base_features["wap0"].rolling(window).max()  # overfit?
 
-            # time_features[f"wap1_{window}_mean"] = base_features["wap1"].rolling(window).mean()
-            # time_features[f"wap1_{window}_std"] = base_features["wap1"].rolling(window).std()  # overfit?
-            # time_features[f"wap1_{window}_max"] = base_features["wap1"].rolling(window).max()  # overfit?
+            time_features[f"wap1_{window}_mean"] = base_features["wap1"].rolling(window).mean()
+            time_features[f"wap1_{window}_std"] = base_features["wap1"].rolling(window).std()  # overfit?
+            time_features[f"wap1_{window}_max"] = base_features["wap1"].rolling(window).max()  # overfit?
 
             time_features[f"volume_imbalance_{window}_mean"] = base_features["volume_imbalance"].rolling(window).mean()
             time_features[f"volume_imbalance_{window}_max"] = base_features["volume_imbalance"].rolling(window).max()
@@ -162,20 +166,34 @@ class FeatureExtractor:
         return time_features[usecols]
 
     def get_topk_features(self):
-        """Build small subset of topk features"""
+        """
+        Build small subset of topk features
+            "bid_flatten_mean_5",
+            "wap_flatten_5",
+            "bid_flatten_mean_50",
+            "ask_flatten_skew_50",
+            "bid_flatten_kurtosis_50",
+            "ask_flatten_mean_50",
+            "ask_flatten_iqr_50",
+        """
         features = pd.DataFrame()
         ask_flatten_df_5 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=5), axis=1)
         bid_flatten_df_5 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=5), axis=1)
         ask_flatten_df_50 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=50), axis=1)
         bid_flatten_df_50 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=50), axis=1)
         features["bid_flatten_mean_5"] = bid_flatten_df_5.parallel_apply(np.mean)
-        features["ask_flatten_mean_5"] = ask_flatten_df_5.parallel_apply(np.mean)
+        ask_flatten_mean_5 = ask_flatten_df_5.parallel_apply(np.mean)
+        ask_5_len = ask_flatten_df_5.parallel_apply(len)
+        bid_5_len = bid_flatten_df_5.parallel_apply(len)
+        features["wap_flatten_5"] = (ask_flatten_mean_5 * bid_5_len + features["bid_flatten_mean_5"] * ask_5_len) / (
+            ask_5_len + bid_5_len
+        )
         features["bid_flatten_mean_50"] = bid_flatten_df_50.parallel_apply(np.mean)
         features["ask_flatten_mean_50"] = ask_flatten_df_50.parallel_apply(np.mean)
         features["ask_flatten_skew_50"] = ask_flatten_df_50.parallel_apply(scipy.stats.skew)
         features["ask_flatten_iqr_50"] = ask_flatten_df_50.parallel_apply(scipy.stats.iqr)
         features["bid_flatten_kurtosis_50"] = bid_flatten_df_50.parallel_apply(scipy.stats.kurtosis)
-        features["bid_flatten_std_50"] = bid_flatten_df_50.parallel_apply(np.std)
+        # features["bid_flatten_std_50"] = bid_flatten_df_50.parallel_apply(np.std)
         return features
 
     def _read_data(self):

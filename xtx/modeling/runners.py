@@ -202,6 +202,20 @@ class CrossValClassificationRunner(CrossValRunner):
         test_predicted = self._probas2prediction(test_probas)
         self.report.update_test(fold_processor.test_target, test_predicted)
 
+    def predict_proba(self, unseen_features: pd.DataFrame):
+        """Make ensemble prediction for class probabilities by some unseen features"""
+        processed_features, non_nan_idxs = self.preprocessor.transform(unseen_features)
+        averaged_predictions = np.zeros((unseen_features.shape[0], self.n_classes))
+
+        for fold_id in range(self.time_folds.n_folds):
+            model = self.trained_models[fold_id]
+            predicted_probas = model.predict_proba(processed_features[non_nan_idxs, :])
+            averaged_predictions[non_nan_idxs, :] = (
+                averaged_predictions[non_nan_idxs] + predicted_probas
+            ) / self.time_folds.n_folds
+
+        return averaged_predictions
+
     @property
     def oof_class_probas(self):
         nan_idxs = np.isnan(self.oof)
