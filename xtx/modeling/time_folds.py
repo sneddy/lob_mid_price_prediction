@@ -82,6 +82,14 @@ class TimeFolds:
 
     @property
     def whole_pseudo_target(self):
+        """
+        Expect mid_price that not so clear but works
+        Also amount of rows filtered out by neutral_ratio should be larget then pseudo_target_shift.
+        """
+        assert (
+            self.skip_top_thr >= self.pseudo_target_shift
+        ), f"Pseudo target shouldn't be None. Please increase {self.neutral_ratio}"
+        assert "mid_price" in self.df.columns, ValueError("Expected mid_price in features to calculate pseudo target")
         return -self.df["mid_price"].diff(-self.pseudo_target_shift)
 
     def get_train_target(self, fold_id: int):

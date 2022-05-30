@@ -27,10 +27,20 @@ if __name__ == "__main__":
     logger.info(f"Experiment parameters:\n{experiment}")
     assert (
         experiment.get("cached_features", None) is not None
-    ), "Feature extraction should have cached_features in config"
-    merged_features, target = load_features(
+    ), f"Feature extraction should have cached_features in config {experiment_config_path}"
+    load_features(
         data_path=experiment["train_data_path"],
         features_path=experiment["cached_features"],
+        use_cache=True,
+        pseudo_target=None,
+    )
+    assert (
+        experiment.get("cached_test_features", None) is not None
+    ), f"Feature extraction should have cached_test_features in config {experiment_config_path}"
+
+    load_features(
+        data_path=experiment["test_data_path"],
+        features_path=experiment["cached_test_features"],
         use_cache=True,
         pseudo_target=None,
     )
