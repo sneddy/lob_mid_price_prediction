@@ -8,7 +8,7 @@ predictions_dir: predictions/production
 runners_dir: runners/productions
 model_zoo: configs/models_zoo.yaml
 
-use_regression_models:  
+use_regression_models:
   - default_ridge
   - default_dart
   - default_lgbm
@@ -28,9 +28,9 @@ TimeFolds:
   neutral_ratio: 0.05
   test_ratio: 0
   train_test_gap: 10000
-    
+
 random_seed: 42
-pseudo_target: 
+pseudo_target:
   - 40
   - 60
   - 75

@@ -63,7 +63,7 @@ train_zoo:
           solver: sgd
           tol: 0.0001
           max_iter: 1
-          verbose: True 
+          verbose: True
     default_mlp_2:
         model_module: sklearn.neural_network
         model_cls: MLPRegressor
@@ -76,8 +76,8 @@ train_zoo:
           batch_size: 30000
           tol: 0.0001
           max_iter: 15
-          verbose: True 
-        
+          verbose: True
+
     default_dart:
         model_module: lightgbm
         model_cls: LGBMRegressor
@@ -135,6 +135,7 @@ train_zoo:
             subsample: 0.15
             min_child_samples: 10000
             force_col_wise: True
+            verbose: -1
     # another_lgbm:
     #     model_module: lightgbm
     #     model_cls: LGBMRegressor
@@ -163,3 +164,4 @@ train_zoo:
             min_child_samples: 1000
             subsample: 0.05
             force_col_wise: True
+            verbose: -1
