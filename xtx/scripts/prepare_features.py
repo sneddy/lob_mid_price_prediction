@@ -31,8 +31,9 @@ if __name__ == "__main__":
     load_features(
         data_path=experiment["train_data_path"],
         features_path=experiment["cached_features"],
-        use_cache=True,
+        use_cache=False,
         pseudo_target=None,
+        from_pool=True,
     )
     assert (
         experiment.get("cached_test_features", None) is not None
@@ -41,6 +42,7 @@ if __name__ == "__main__":
     load_features(
         data_path=experiment["test_data_path"],
         features_path=experiment["cached_test_features"],
-        use_cache=True,
+        use_cache=False,
         pseudo_target=None,
+        from_pool=True,
     )

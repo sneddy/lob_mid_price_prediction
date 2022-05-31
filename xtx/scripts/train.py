@@ -25,15 +25,19 @@ def argparser():
 def train(experiment: Dict[str, Any]):
     clf_runners = {}
     reg_runners = {}
-    pseudo_target_list = [None] + experiment.get("pseudo_target", [])
+    pseudo_target_list = experiment.get("pseudo_target", [0])
+
+    merged_features, target = load_features(
+        data_path=experiment["train_data_path"],
+        features_path=experiment["cached_features"],
+        use_cache=True,
+        pseudo_target=None,
+        from_pool=experiment["from_pool"],
+        usecols=experiment.get("usecols", None),
+    )
+
     for pseudo_target in pseudo_target_list:
         logger.info(f"Building runners for pseudo_target: {pseudo_target}")
-        merged_features, target = load_features(
-            data_path=experiment["train_data_path"],
-            features_path=experiment["cached_features"],
-            use_cache=True,
-            pseudo_target=None,
-        )
 
         time_folds = TimeFolds(pseudo_target_shift=pseudo_target, **experiment["TimeFolds"])
         test_eval = time_folds.test_ratio > 0
@@ -71,9 +75,16 @@ def train(experiment: Dict[str, Any]):
 
 
 def test(experiment: Dict[str, Any], runners_stacking: RunnersStacking):
-    merged_features, _ = load_features(
-        data_path=experiment["test_data_path"], features_path=experiment["cached_test_features"], use_cache=True
+
+    merged_features, target = load_features(
+        data_path=experiment["test_data_path"],
+        features_path=experiment["cached_test_features"],
+        use_cache=True,
+        pseudo_target=None,
+        from_pool=experiment["from_pool"],
+        usecols=experiment.get("usecols", None),
     )
+
     predicted_by_ensemble = runners_stacking.predict_by_ensemble(merged_features)
     predicted_by_stacking = runners_stacking.predict_by_stacking(merged_features)
 
