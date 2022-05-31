@@ -1,9 +1,15 @@
-# xtx
-- Put train.csv and test.csv to directory data
-- Add correct values for paths for train and test in configs/experiment_prod.yaml
+# Run xtx short pipeline
 - install requirements:
 ```bash
 pip install -r requirements.txt
+```
+- Put train.csv and test.csv to directory data
+- Add correct values for paths for train and test to all configs in configs/fast_experiments:
+    - exp_usecols_{i}.yaml
+    - exp_usecols_{i}.yaml
+- extract and cache features
+```bash
+python -m xtx.scripts.prepare_features configs/experiment_prod.yaml
 ```
 - run training pipeline
 ```bash
@@ -33,6 +39,15 @@ As for benchmark scores, on test dataset 0.17 correlation is very good, while 0.
 
 ## Solution Overview
 - You can check notebooks/demo.ipynb
+
+## Feature Selection
+Trained large pool of reasonable features (About 230)
+After that on every fold applied strategy:
+- sample half of them randomly
+- train and validate simple Ridge with relatively small alpha (~10).
+- greedy insert and remove features. Aplly changes only if validation score on this fold increased
+- after some kind convergence use this features to train stacking/ensembling on every fold. 
+- Builded features kindo diverse for every fold so can be good for ensembling.
 
 ## Metrics
 Some kind of Kaggle Style improvement can be easily done by running more experiments and adding them to stacking:
