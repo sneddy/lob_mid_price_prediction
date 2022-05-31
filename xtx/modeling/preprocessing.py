@@ -75,7 +75,8 @@ class FoldPreprocessor:
     def _init_train(self):
         train_data = self.time_folds.get_train_data(self.fold_id)
         train_target = self.time_folds.get_train_target(self.fold_id)
-        train_idxs = np.where(train_data.notnull().all(1))
+        train_idxs = np.where(train_data.notnull().all(1))[0]
+        # train_idxs = [idx for idx in train_idxs if idx > 87]
 
         train_data.dropna(inplace=True)
         train_data = self.scaler.transform(train_data)
@@ -88,7 +89,8 @@ class FoldPreprocessor:
     def _init_valid(self):
         valid_data = self.time_folds.get_valid_data(self.fold_id)
         valid_target = self.time_folds.get_valid_target(self.fold_id)
-        valid_idxs = np.where(valid_data.notnull().all(1))
+        valid_idxs = np.where(valid_data.notnull().all(1))[0]
+        # valid_idxs = [idx for idx in valid_idxs if idx > 87]
 
         valid_data.dropna(inplace=True)
         valid_target = valid_target.values[valid_idxs]

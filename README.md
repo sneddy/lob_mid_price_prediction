@@ -29,6 +29,14 @@ python -m xtx.scripts.train configs/fast_experiments/exp_usecols_2.yaml
 python -m xtx.scripts.train configs/fast_experiments/exp_usecols_3.yaml
 python -m xtx.scripts.train configs/fast_experiments/exp_usecols_4.yaml
 ```
+Also available longer but more stable pipeline
+```bash
+python -m xtx.scripts.train configs/experiments/exp_usecols_0.yaml
+python -m xtx.scripts.train configs/experiments/exp_usecols_1.yaml
+python -m xtx.scripts.train configs/experiments/exp_usecols_2.yaml
+python -m xtx.scripts.train configs/experiments/exp_usecols_3.yaml
+python -m xtx.scripts.train configs/experiments/exp_usecols_4.yaml
+```
 
 - run final ensembling
 ```bash
@@ -80,6 +88,7 @@ Some kind of Kaggle Style improvement can be easily done by running more experim
 - averaging predictions by other pseudo targets (different shifts, some smoothing)
 - averaging predictions by different time folds
 - adding another lgbm models to model_zoo
+- add classification models
 
 Non trivial improvements can be done by training some neural networks.
 My recent experiments wasn't successful

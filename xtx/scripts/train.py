@@ -40,21 +40,22 @@ def train(experiment: Dict[str, Any]):
         logger.info(f"Building runners for pseudo_target: {pseudo_target}")
 
         time_folds = TimeFolds(pseudo_target_shift=pseudo_target, **experiment["TimeFolds"])
-        test_eval = time_folds.test_ratio > 0
+        test_eval = False  # time_folds.test_ratio > 0
         time_folds.fit(merged_features, target)
 
         model_zoo = dev_utils.load_yaml(experiment["model_zoo"])
         use_regression_models = experiment.get("use_regression_models", [])
-        use_classification_models = experiment.get("use_classification_models", [])
-        clf_model_configs = {
-            model_name: model_zoo["train_zoo"][model_name] for model_name in use_classification_models
-        }
+        # use_classification_models = experiment.get("use_classification_models", [])
+        # clf_model_configs = {
+        #     model_name: model_zoo["train_zoo"][model_name] for model_name in use_classification_models
+        # }
         reg_model_configs = {model_name: model_zoo["train_zoo"][model_name] for model_name in use_regression_models}
 
         runners_dir = experiment["runners_dir"]
-        current_clf_runners = build_runners(
-            time_folds, clf_model_configs, runners_dir=runners_dir, regression=False, pseudo_target=pseudo_target
-        )
+        current_clf_runners = {}
+        # current_clf_runners = build_runners(
+        #     time_folds, clf_model_configs, runners_dir=runners_dir, regression=False, pseudo_target=pseudo_target
+        # )
         current_reg_runners = build_runners(
             time_folds, reg_model_configs, runners_dir=runners_dir, regression=True, pseudo_target=pseudo_target
         )

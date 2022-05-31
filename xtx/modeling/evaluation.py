@@ -118,12 +118,15 @@ class CrossValReport:
             \tVal  corr score averaged: {self.val_corr_mean:.3f}
             \tVal   MSE score averaged: {self.val_mse_mean:.3f}
         """
-        test_repr = f"""\n \
-            \tTest corr score averaged: {self.test_corr_mean:.3f}
-            \tTest  MSE score averaged: {self.test_mse_mean:.3f}
-            ------------------------------------------------------------------
-            \tTest  MSE predicts averaged: {self.test_averaged_mse:.3f}
-            \tTest corr predicts averaged: {self.test_averaged_corr:.3f}"""
+        if self.test_eval:
+            test_repr = f"""\n \
+                \tTest corr score averaged: {self.test_corr_mean:.3f}
+                \tTest  MSE score averaged: {self.test_mse_mean:.3f}
+                ------------------------------------------------------------------
+                \tTest  MSE predicts averaged: {self.test_averaged_mse:.3f}
+                \tTest corr predicts averaged: {self.test_averaged_corr:.3f}"""
+        else:
+            test_repr = ""
         aggregated_repr = val_repr + test_repr if self.test_eval else val_repr
         return self.folds_report.to_markdown() + aggregated_repr
 
