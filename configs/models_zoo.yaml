@@ -1,3 +1,9 @@
+selection_ridge:
+    model_module: sklearn.linear_model
+    model_cls: Ridge
+    model_params:
+        alpha: 10
+
 stacking_zoo:
     stacking_ridge:
         model_module: sklearn.linear_model
@@ -30,9 +36,9 @@ stacking_zoo:
             drop_rate: 0.6
             learning_rate: 0.1
             max_depth: 4
-            min_child_samples: 20000
+            min_child_samples: 50000
             min_child_weight: 0.035
-            n_estimators: 200
+            n_estimators: 100
             objective: regression
             skip_drop: 0.8
             subsample: 0.8
@@ -52,7 +58,7 @@ train_zoo:
         model_cls: Lasso
         model_params:
           alpha: 0.01
-    default_mlp:
+    one_epoch_mlp:
         model_module: sklearn.neural_network
         model_cls: MLPRegressor
         model_params:
@@ -64,7 +70,7 @@ train_zoo:
           tol: 0.0001
           max_iter: 1
           verbose: True
-    default_mlp_2:
+    well_reg_mlp:
         model_module: sklearn.neural_network
         model_cls: MLPRegressor
         model_params:

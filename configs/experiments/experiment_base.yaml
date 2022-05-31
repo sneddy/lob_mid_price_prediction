@@ -1,0 +1,45 @@
+train_data_path: data/xtx_data.csv
+test_data_path:
+
+train_topk_features: topk_artefacts
+test_topk_features: test_topk_artefacts
+cached_features: data/features.pkl
+cached_test_features: 
+from_pool: False
+usecols: 
+
+predictions_dir: predictions/base
+runners_dir: runners/5_folds_base
+model_zoo: configs/models_zoo.yaml
+
+use_regression_models:
+  - default_ridge
+  - default_dart
+  - default_lgbm
+  - wild_lgbm
+  # - well_reg_mlp
+  # - fast_dart
+  # - default_lasso
+  # - one_epoch_mlp
+
+
+use_classification_models: []
+  # - default_logreg
+
+stacking_model: stacking_ridge
+
+TimeFolds:
+    n_folds: 5
+    minifold_size: 60000
+    neutral_ratio: 0.025
+    test_ratio: 0.2
+    train_test_gap: 2000
+# TimeFolds:
+#     n_folds: 5
+#     minifold_size: 6000
+#     neutral_ratio: 0.05
+#     test_ratio: 0.2
+#     train_test_gap: 2000
+
+random_seed: 42
+pseudo_target: [0, 20, 40, 60]
