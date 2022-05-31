@@ -1,3 +1,5 @@
+import gc
+import os
 from typing import List, Optional
 
 import numpy as np
@@ -36,8 +38,8 @@ class FeatureExtractor:
         return (self.bid_size[order] - self.ask_size[order]) / (self.ask_size[order] + self.bid_size[order])
 
     def calc_cum_volume_imbalance(self, order: int):
-        cum_bid_size = self.data[self.bid_size_cols[:order]].sum(axis=1)
-        cum_ask_size = self.data[self.ask_size_cols[:order]].sum(axis=1)
+        cum_bid_size = self.data[self.bid_size_cols[: order + 1]].sum(axis=1)
+        cum_ask_size = self.data[self.ask_size_cols[: order + 1]].sum(axis=1)
         return (cum_bid_size - cum_ask_size) / (cum_bid_size + cum_ask_size)
 
     def rate_moda(self, is_ask: bool):
@@ -49,7 +51,7 @@ class FeatureExtractor:
         """Fake target. Can include nan values in first shift_size positions"""
         return -(self.data["askRate0"] + self.data["bidRate0"]).diff(-shift_size)
 
-    def get_base_features(self, usecols: Optional[List[str]] = None) -> pd.DataFrame:
+    def get_base_features(self, usecols: Optional[List[str]] = None, extend_features=True) -> pd.DataFrame:
         """Extract really reasonable features without any time dependensies
         Args:
             usecols (Optional[List[str]], optional): predefined subset of features to use.
@@ -59,15 +61,17 @@ class FeatureExtractor:
         """
         base_features = pd.DataFrame()
         base_features["ask_rate_0"] = self.ask_rate[0]
-        # base_features["spread"] = self.ask_rate[0] - self.bid_rate[0]
+        #
         # base_features['bid_rate_0'] = self.bid_rate[0]
         base_features["mid_price"] = (self.ask_rate[0] + self.bid_rate[0]) / 2
         base_features["mid_price_log"] = base_features["mid_price"].apply(np.log1p)
 
-        # base_features['ask_size_0'] = self.ask_size[0].apply(np.log1p)
-        # base_features['bid_size_0'] = self.bid_size[0].apply(np.log1p)
+        if extend_features:
+            base_features["spread"] = self.ask_rate[0] - self.bid_rate[0]
+            base_features["bid_ask_spread"] = self.ask_rate[0] / self.bid_rate[0] - 1
+            base_features["ask_size_0"] = self.ask_size[0]
+            base_features["bid_size_0"] = self.bid_size[0]
 
-        # base_features['bid_ask_spread'] = self.ask_rate[0] / self.bid_rate[0] - 1
         base_features["ask_len"] = self.data[self.ask_size_cols].sum(axis=1)
         base_features["bid_len"] = self.data[self.bid_size_cols].sum(axis=1)
         base_features["wap0"] = self.calc_wap(0).astype(np.float32)
@@ -110,7 +114,9 @@ class FeatureExtractor:
 
         return base_features[usecols]
 
-    def get_time_base_features(self, base_features: pd.DataFrame, usecols: Optional[List[str]] = None) -> pd.DataFrame:
+    def get_time_base_features(
+        self, base_features: pd.DataFrame, usecols: Optional[List[str]] = None, extend_features=True
+    ) -> pd.DataFrame:
         time_features = pd.DataFrame()
         # time_features["deal_flag"] = ((self.data.askRate0.diff() * self.data.bidRate0.diff()) > 0).astype(np.int8)
         for window in (3, 5, 10, 20, 40, 80):
@@ -122,8 +128,9 @@ class FeatureExtractor:
             time_features["increased_ask_counts"] = (ask_size_diff > 0).sum(axis=1)
             time_features["decreased_ask_counts"] = (ask_size_diff < 0).sum(axis=1)
 
-            # time_features[f'increased_ask_counts_{window}_volume'] = (ask_size_diff * (ask_size_diff > 0)).sum(1)
-            # time_features[f'decreased_ask_counts_{window}_volume'] = (-ask_size_diff * (ask_size_diff < 0)).sum(1)
+            if extend_features:
+                time_features[f"increased_ask_counts_{window}_volume"] = (ask_size_diff * (ask_size_diff > 0)).sum(1)
+                time_features[f"decreased_ask_counts_{window}_volume"] = (-ask_size_diff * (ask_size_diff < 0)).sum(1)
 
             time_features["increased_bid_counts"] = (bid_size_diff > 0).sum(axis=1)
             time_features["decreased_bid_counts"] = (bid_size_diff < 0).sum(axis=1)
@@ -135,11 +142,13 @@ class FeatureExtractor:
             time_features[f"mid_price_log_max_diff_{window}"] = (
                 base_features["mid_price_log"].rolling(window).max() - base_features["mid_price_log"]
             )
-            # time_features[f'mid_price_log_std_{window}'] = \
-            # base_features[f'mid_price_log'].diff(window).rolling(window).std()
+            if extend_features:
+                time_features[f"mid_price_std_{window}"] = (
+                    base_features["mid_price"].diff(window).rolling(window).std()
+                )
 
-            # time_features[f"spread_rolling_mean_{window}"] = base_features["spread"].rolling(window).mean()
-            # time_features[f"spread_rolling_std_{window}"] = base_features["spread"].rolling(window).std()
+                time_features[f"spread_rolling_mean_{window}"] = base_features["spread"].rolling(window).mean()
+                time_features[f"spread_rolling_std_{window}"] = base_features["spread"].rolling(window).std()
 
         for window in (10, 20, 40, 80):
             time_features[f"wap0_{window}_mean"] = base_features["wap0"].rolling(window).mean()
@@ -165,7 +174,7 @@ class FeatureExtractor:
             return time_features
         return time_features[usecols]
 
-    def get_topk_features(self):
+    def get_topk_features(self, extend_features=True):
         """
         Build small subset of topk features
             "bid_flatten_mean_5",
@@ -179,8 +188,7 @@ class FeatureExtractor:
         features = pd.DataFrame()
         ask_flatten_df_5 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=5), axis=1)
         bid_flatten_df_5 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=5), axis=1)
-        ask_flatten_df_50 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=50), axis=1)
-        bid_flatten_df_50 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=50), axis=1)
+
         features["bid_flatten_mean_5"] = bid_flatten_df_5.parallel_apply(np.mean)
         ask_flatten_mean_5 = ask_flatten_df_5.parallel_apply(np.mean)
         ask_5_len = ask_flatten_df_5.parallel_apply(len)
@@ -188,12 +196,26 @@ class FeatureExtractor:
         features["wap_flatten_5"] = (ask_flatten_mean_5 * bid_5_len + features["bid_flatten_mean_5"] * ask_5_len) / (
             ask_5_len + bid_5_len
         )
+        del (ask_flatten_df_5, bid_flatten_df_5)
+        gc.collect()
+
+        ask_flatten_df_50 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=50), axis=1)
+        bid_flatten_df_50 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=50), axis=1)
         features["bid_flatten_mean_50"] = bid_flatten_df_50.parallel_apply(np.mean)
         features["ask_flatten_mean_50"] = ask_flatten_df_50.parallel_apply(np.mean)
         features["ask_flatten_skew_50"] = ask_flatten_df_50.parallel_apply(scipy.stats.skew)
         features["ask_flatten_iqr_50"] = ask_flatten_df_50.parallel_apply(scipy.stats.iqr)
         features["bid_flatten_kurtosis_50"] = bid_flatten_df_50.parallel_apply(scipy.stats.kurtosis)
         # features["bid_flatten_std_50"] = bid_flatten_df_50.parallel_apply(np.std)
+        del (ask_flatten_df_50, bid_flatten_df_50)
+        gc.collect()
+
+        if extend_features:
+            ask_flatten_df_100 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=100), axis=1)
+            bid_flatten_df_100 = self.data.parallel_apply(lambda x: flatten_tools.ask_flatten(x, n=100), axis=1)
+            features["bid_flatten_mean_150"] = bid_flatten_df_100.parallel_apply(np.mean)
+            features["ask_flatten_mean_150"] = ask_flatten_df_100.parallel_apply(np.mean)
+            features["ask_flatten_iqr_150"] = ask_flatten_df_100.parallel_apply(scipy.stats.iqr)
         return features
 
     def _read_data(self):
@@ -206,3 +228,156 @@ class FeatureExtractor:
             raise ValueError(f"Incorrect extension of {self.data_path}. Expected .csv or .pkl")
         print(f"Loaded data from {self.data_path} with shape: {data.shape}")
         return data.fillna(0)
+
+
+class FeaturesPool(FeatureExtractor):
+    """Extract large features pool. Requeired feature selection."""
+
+    def __init__(self, data_path: str):
+        super().__init__(data_path)
+
+    def extract_large_pool(self):
+        pass
+
+    def get_base_features(self, usecols: Optional[List[str]] = None, extend_features=True) -> pd.DataFrame:
+        """Extract really reasonable features without any time dependensies
+        Args:
+            usecols (Optional[List[str]], optional): predefined subset of features to use.
+                Defaults to None.
+        Returns:
+            pd.DataFrame: features
+        """
+        base_features = pd.DataFrame()
+        base_features["ask_rate_0"] = self.ask_rate[0]
+        base_features["bid_rate_0"] = self.bid_rate[0]
+
+        base_features["mid_price"] = (self.ask_rate[0] + self.bid_rate[0]) / 2
+        base_features["mid_price_log"] = base_features["mid_price"].apply(np.log1p)
+
+        base_features["spread"] = self.ask_rate[0] - self.bid_rate[0]
+        base_features["bid_ask_spread"] = self.ask_rate[0] / self.bid_rate[0] - 1
+
+        base_features["ask_size_0"] = self.ask_size[0]
+        base_features["bid_size_0"] = self.bid_size[0]
+
+        base_features["ask_len"] = self.data[self.ask_size_cols].sum(axis=1)
+        base_features["bid_len"] = self.data[self.bid_size_cols].sum(axis=1)
+        base_features["len_ratio"] = base_features["ask_len"] / base_features["bid_len"]
+
+        for rank in range(10):
+            base_features[f"cum_volume_imbalance_{rank}"] = self.calc_cum_volume_imbalance(rank).astype(np.float32)
+            base_features[f"volume_imbalance_{rank}"] = self.calc_volume_imbalance(rank).astype(np.float32)
+            base_features[f"wap{rank}"] = self.calc_wap(rank).astype(np.float32)
+
+        # difference with most frequent count for ask and bid (to remove)
+        base_features["ask_rate_moda_spread"] = self.rate_moda(is_ask=True) - self.data.askRate0
+        base_features["bid_rate_moda_spread"] = self.data.bidRate0 - self.rate_moda(is_ask=False)
+
+        # # how many ask size columns changed?
+        ask_size_diff = self.data[self.ask_size_cols].diff(1)
+        ask_size_diff.columns = np.arange(15)
+        base_features["increased_ask_counts"] = (ask_size_diff > 0).sum(axis=1)
+        base_features["increased_ask_rank"] = (ask_size_diff > 0).idxmax(axis=1)
+        base_features.loc[base_features["increased_ask_counts"] == 0, "increased_ask_rank"] = 15
+        base_features["decreased_ask_counts"] = (ask_size_diff < 0).sum(axis=1)
+        base_features["decreased_ask_rank"] = (ask_size_diff < 0).idxmax(axis=1)
+        base_features.loc[base_features["decreased_ask_counts"] == 0, "decreased_ask_rank"] = 15
+
+        bid_size_diff = self.data[self.bid_size_cols].diff(1)
+        bid_size_diff.columns = np.arange(15)
+        base_features["increased_bid_counts"] = (bid_size_diff > 0).sum(axis=1)
+        base_features["increased_bid_rank"] = (bid_size_diff > 0).idxmax(axis=1)
+        base_features.loc[base_features["increased_bid_counts"] == 0, "increased_bid_rank"] = 15
+        base_features["decreased_bid_counts"] = (bid_size_diff < 0).sum(axis=1)
+        base_features["decreased_bid_rank"] = (bid_size_diff < 0).idxmax(axis=1)
+        base_features.loc[base_features["decreased_bid_counts"] == 0, "decreased_bid_rank"] = 15
+
+        base_features["increased_askbid_counts"] = (
+            self.data[self.ask_size_cols + self.bid_size_cols].diff(1) > 0
+        ).sum(axis=1)
+        base_features["decreased_askbid_counts"] = (
+            self.data[self.ask_size_cols + self.bid_size_cols].diff(1) < 0
+        ).sum(axis=1)
+
+        shrink_dtype(base_features)
+        if usecols is None:
+            return base_features
+
+        return base_features[usecols]
+
+    def get_topk_features(self, artefacts_dir: str):
+        df_list = []
+        for n_per_row in (5, 25, 50, 100):
+            df_list.append(pd.read_pickle(os.path.join(artefacts_dir, f"features_{n_per_row}.pkl")))
+        return pd.concat(df_list, axis=1)
+
+    def get_time_base_features(
+        self, base_features: pd.DataFrame, usecols: Optional[List[str]] = None, extend_features=True
+    ) -> pd.DataFrame:
+
+        time_features = pd.DataFrame()
+        # time_features["deal_flag"] = ((self.data.askRate0.diff() * self.data.bidRate0.diff()) > 0).astype(np.int8)
+        for window in (3, 5, 10, 20, 40, 80):
+            ask_size_diff = self.data[self.ask_size_cols].diff(window)
+            bid_size_diff = self.data[self.bid_size_cols].diff(window)
+
+            time_features["increased_ask_counts_{window}"] = (ask_size_diff > 0).sum(axis=1)
+            time_features["decreased_ask_counts_{window}"] = (ask_size_diff < 0).sum(axis=1)
+
+            time_features[f"increased_ask_counts_{window}_volume"] = (ask_size_diff * (ask_size_diff > 0)).sum(1)
+            time_features[f"decreased_ask_counts_{window}_volume"] = (-ask_size_diff * (ask_size_diff < 0)).sum(1)
+
+            time_features["increased_bid_counts_{window}"] = (bid_size_diff > 0).sum(axis=1)
+            time_features["decreased_bid_counts_{window}"] = (bid_size_diff < 0).sum(axis=1)
+
+            time_features[f"volume_imbalance_diff_{window}"] = base_features["volume_imbalance_0"].diff(window)
+            time_features[f"mid_price_log_{window}"] = base_features["mid_price_log"].diff(window)
+
+        for window in (5, 10, 20, 40, 80):
+            time_features[f"mid_price_max_diff_{window}"] = (
+                base_features["mid_price_log"].rolling(window).max() - base_features["mid_price_log"]
+            )
+            time_features[f"mid_price_min_diff_{window}"] = (
+                base_features["mid_price_log"] - base_features["mid_price_log"].rolling(window).min()
+            )
+            time_features[f"mid_price_std_{window}"] = base_features["mid_price"].rolling(window).std()
+            time_features[f"spread_rolling_mean_{window}"] = base_features["spread"].rolling(window).mean()
+            time_features[f"spread_rolling_std_{window}"] = base_features["spread"].rolling(window).std()
+
+        for window in (10, 20, 40, 80):
+            time_features[f"wap0_{window}_mean"] = base_features["wap0"].rolling(window).mean()
+            time_features[f"wap0_{window}_std"] = base_features["wap0"].rolling(window).std()  # overfit?
+            time_features[f"wap0_{window}_max"] = base_features["wap0"].rolling(window).max()  # overfit?
+
+            time_features[f"wap1_{window}_mean"] = base_features["wap1"].rolling(window).mean()
+            time_features[f"wap1_{window}_std"] = base_features["wap1"].rolling(window).std()  # overfit?
+            time_features[f"wap1_{window}_max"] = base_features["wap1"].rolling(window).max()  # overfit?
+
+            time_features[f"volume_imbalance_{window}_mean"] = (
+                base_features["volume_imbalance_0"].rolling(window).mean()
+            )
+            time_features[f"volume_imbalance_{window}_max"] = base_features["volume_imbalance_0"].rolling(window).max()
+            time_features[f"volume_imbalance_{window}_std"] = base_features["volume_imbalance_0"].rolling(window).std()
+            time_features[f"volume_imbalance_{window}_skew"] = (
+                base_features["volume_imbalance_0"].rolling(window).skew()
+            )
+
+            time_features[f"len_ratio_{window}_mean"] = base_features["len_ratio"].rolling(window).mean()
+            time_features[f"len_ratio_{window}_std"] = base_features["len_ratio"].rolling(window).std()
+
+        for halflife in (5, 10, 20, 40):
+            time_features[f"wap0_ewm_{window}"] = base_features["wap0"].ewm(halflife=halflife).mean()
+            time_features[f"wap1_ewm_{window}"] = base_features["wap1"].ewm(halflife=halflife).mean()
+
+            time_features[f"mid_price_ewm_{window}"] = base_features["mid_price"].ewm(halflife=halflife).mean()
+
+            time_features[f"volume_imbalance_ewm_{window}"] = (
+                base_features["volume_imbalance_0"].ewm(halflife=halflife).mean()
+            )
+            time_features[f"volume_imbalance_1_ewm_{window}"] = (
+                base_features["volume_imbalance_1"].ewm(halflife=halflife).mean()
+            )
+        shrink_dtype(time_features)
+        if usecols is None:
+            return time_features
+        return time_features[usecols]

@@ -5,7 +5,8 @@ import pandas as pd
 from contexttimer import Timer
 
 import xtx.utils.dev_utils as dev_utils
-from xtx.features.feature_extractor import FeatureExtractor
+import xtx.utils.modeling_utils as modeling_utils
+from xtx.features.feature_extractor import FeatureExtractor, FeaturesPool
 from xtx.modeling.runners import CrossValClassificationRunner, CrossValRunner
 
 logger = dev_utils.init_logger("logging/factory.log")
@@ -39,9 +40,14 @@ def build_runners(
     return runners
 
 
-def load_features(data_path: str, features_path: str, pseudo_target: int = None, use_cache=False):
-    feature_extractor = FeatureExtractor(data_path)
+def load_features(
+    data_path: str, features_path: str, pseudo_target: int = None, use_cache=False, from_pool=True, usecols=None
+):
+    feature_extractor = FeaturesPool(data_path) if from_pool else FeatureExtractor(data_path)
     data = feature_extractor.data
+    if usecols is not None:
+        with open(usecols) as input_stream:
+            usecols = list(map(lambda x: x.strip(), input_stream.readlines()))
 
     if use_cache and features_path is not None and os.path.exists(features_path):
         logger.info(f"Loading cached features from {features_path}")
@@ -53,10 +59,13 @@ def load_features(data_path: str, features_path: str, pseudo_target: int = None,
         logger.info(f"Base features extraction time: {base_features_time.elapsed:.1f} sec")
         logger.info(f"Extracted base features: \n{base_features.columns.tolist()}")
 
-        with Timer() as topk_features_time:
-            topk_features = feature_extractor.get_topk_features()
-        logger.info(f"Topk features extraction time: {topk_features_time.elapsed:.1f} sec")
-        logger.info(f"Extracted topk features: \n{topk_features.columns.tolist()}")
+        if from_pool:
+            topk_features = feature_extractor.get_topk_features("topk_artefacts")
+        else:
+            with Timer() as topk_features_time:
+                topk_features = feature_extractor.get_topk_features()
+            logger.info(f"Topk features extraction time: {topk_features_time.elapsed:.1f} sec")
+            logger.info(f"Extracted topk features: \n{topk_features.columns.tolist()}")
 
         with Timer() as time_features_time:
             time_features = feature_extractor.get_time_base_features(base_features)
@@ -73,4 +82,8 @@ def load_features(data_path: str, features_path: str, pseudo_target: int = None,
         logger.info(f"Making fake target: mid_price_diff_{pseudo_target}")
         target = feature_extractor.get_fake_target(pseudo_target).iloc[:-pseudo_target]
         merged_features = merged_features.iloc[:-pseudo_target, :]
+    if usecols is not None:
+        merged_features = merged_features.loc[:, usecols]
+        print(f"Selected only {len(usecols)} features")
+    # modeling_utils.shrink_dtype(merged_features)
     return merged_features, target
