@@ -2,6 +2,7 @@ from typing import List
 
 import numpy as np
 import pandas as pd
+import sklearn.preprocessing
 
 
 class TimeFolds:
@@ -13,6 +14,7 @@ class TimeFolds:
         test_ratio=0.2,
         train_test_gap=0,
         pseudo_target_shift=None,
+        pseudo_target_smooth=None,
     ):
         """
         Example with default parameters:
@@ -33,7 +35,12 @@ class TimeFolds:
         self.neutral_ratio = neutral_ratio
         self.test_ratio = test_ratio
         self.train_test_gap = train_test_gap
-        self.pseudo_target_shift = pseudo_target_shift
+
+        if pseudo_target_shift is None:
+            self.pseudo_target_shift = None
+        else:
+            self.pseudo_target_shift = pseudo_target_shift if pseudo_target_shift > 0 else None
+        self.pseudo_target_smooth = pseudo_target_smooth
 
         self.skip_bot_thr = int(self.neutral_ratio * self.minifold_size)
         self.skip_top_thr = self.minifold_size - self.skip_bot_thr
@@ -45,6 +52,8 @@ class TimeFolds:
         self.n = 0
         self.folds = None
         self.minifolds = None
+        self.scaler = sklearn.preprocessing.RobustScaler()
+        self.fold_preprocessors = []
 
     def __len__(self):
         if self.df is None:
@@ -67,6 +76,7 @@ class TimeFolds:
 
         self.minifolds: np.ndarray = np.arange(self.train_size) // self.minifold_size
         self.folds: np.ndarray = self.minifolds % self.n_folds
+        self.scaler.fit(self.whole_train_data.dropna())
 
     @property
     def whole_train_data(self):
@@ -90,7 +100,10 @@ class TimeFolds:
             self.skip_top_thr >= self.pseudo_target_shift
         ), f"Pseudo target shouldn't be None. Please increase {self.neutral_ratio}"
         assert "mid_price" in self.df.columns, ValueError("Expected mid_price in features to calculate pseudo target")
-        return -self.df["mid_price"].diff(-self.pseudo_target_shift)
+        mid_price = -self.df["mid_price"]
+        # if self.pseudo_target_smooth is not None:
+        # mid_price = mid_price.rolling(-self.pseudo_target_smooth).mean()
+        return mid_price.diff(-self.pseudo_target_shift)
 
     def get_train_target(self, fold_id: int):
         selected_idx = self.get_train_idxs(fold_id)

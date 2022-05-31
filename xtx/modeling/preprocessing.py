@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import sklearn.preprocessing
+
+# import sklearn.preprocessing
 from sklearn.decomposition import PCA
 
 from xtx.modeling.time_folds import TimeFolds
@@ -17,16 +18,17 @@ class DatasetPreprocessor:
         self.time_folds = time_folds
         self.pca_components = pca_components
 
-        self.scaler = sklearn.preprocessing.RobustScaler()
-        scaled_whole_data = self.scaler.fit_transform(time_folds.whole_train_data.dropna())
+        self.scaler = self.time_folds.scaler
+        # self.scaler = sklearn.preprocessing.RobustScaler()
+        # scaled_whole_data = self.scaler.fit_transform(time_folds.whole_train_data.dropna())
 
-        if self.pca_components is not None:
-            self.pca = PCA(n_components=self.pca_components)
-            self.pca.fit(scaled_whole_data)
+        # if self.pca_components is not None:
+        #     self.pca = PCA(n_components=self.pca_components)
+        #     self.pca.fit(scaled_whole_data)
 
     def prepare_fold(self, fold_id) -> FoldPreprocessor:
-        pca = self.pca if self.pca_components is not None else None
-        return FoldPreprocessor(self.time_folds, fold_id, self.scaler, pca)
+        # pca = self.pca if self.pca_components is not None else None
+        return FoldPreprocessor(self.time_folds, fold_id, self.scaler, pca=None)
 
     def transform(self, data: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
         """Preprocessing of unseen data
@@ -37,8 +39,8 @@ class DatasetPreprocessor:
         """
         not_nan_idxs = np.where(data.notnull().all(1))[0]
         processed = self.scaler.transform(data.fillna(0))
-        if self.pca_components is not None:
-            processed = self.pca.transform(processed)
+        # if self.pca_components is not None:
+        #     processed = self.pca.transform(processed)
         return processed, not_nan_idxs
 
 
