@@ -31,7 +31,7 @@ TimeFolds:
     minifold_size: 60000
     neutral_ratio: 0.025
     test_ratio: 0.
-    train_test_gap: 0
+    train_test_gap: 100
 # TimeFolds:
 #     n_folds: 5
 #     minifold_size: 6000
